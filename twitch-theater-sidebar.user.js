@@ -3,7 +3,7 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      4.2.0
+// @version      4.3.0
 // @description  Clean up legacy sidebar scripts and audit CSS affecting Twitch navigation.
 // @match        https://www.twitch.tv/*
 // @noframes
@@ -125,6 +125,7 @@
         '#tts4-toolbar button.tts4-action{text-align:center;}' +
         '#tts4-toolbar .tts4-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-bottom:6px;}' +
         '#tts4-toolbar .tts4-help{color:#c8c8d0;font-size:11px;}' +
+        '#tts4-toolbar .tts4-report{display:block;width:100%;height:180px;margin:6px 0;padding:8px;border:1px solid #555;border-radius:5px;background:#111;color:#e8e8eb;font:10px/1.35 Consolas,monospace;white-space:pre;resize:vertical;}' +
         '#tts4-toolbar.tts4-minimized .tts4-body{display:none;}';
     (document.head || document.documentElement).appendChild(style);
 
@@ -149,13 +150,14 @@
         '<button type="button" data-mode="8">8. Кнопка Twitch</button>',
         '<button type="button" data-mode="9">9. Подсветка DOM</button>',
         '<button type="button" data-mode="10">10. Кто скрывает?</button>',
+        '<button type="button" data-mode="11">11. Внешний контейнер</button>',
         '</div>',
         '<div class="tts4-actions">',
         '<button type="button" class="tts4-action" id="tts4-show">Показать сейчас</button>',
         '<button type="button" class="tts4-action" id="tts4-hide">Скрыть / тест края</button>',
         '<button type="button" class="tts4-action" id="tts4-reset">Сброс</button>',
         '</div>',
-        '<div class="tts4-help">Режимы 1–9 тестируют способы показа. Режим 10 ищет CSS-правила, скрывающие панель. Отчёт появится в поле выше; скопируй его целиком и пришли мне. Панель трансляций не дублируется.</div>',
+        '<div class="tts4-help">Режимы 1–9 тестируют способы показа; 10 ищет скрывающий CSS. Режим 11 поднимает внешний контейнер настоящей панели поверх плеера. Для наведения нажми «Скрыть / тест края», затем подведи мышь к левому краю.</div>',
         '</div>'
     ].join('');
     document.body.appendChild(toolbar);
@@ -193,7 +195,7 @@
         '[class*="channel-root"][class*="theater"]'
     ];
 
-    let selectedMode = 1;
+    let selectedMode = 11;
     let activeTarget = null;
     let previewOpen = false;
     let openedByHover = false;
@@ -247,7 +249,8 @@
         const cs = getComputedStyle(el);
         const links = el.querySelectorAll('a[href]').length;
         return tag + id + cls + ' | links=' + links +
-            ' | rect=' + Math.round(rect.width) + '×' + Math.round(rect.height) +
+            ' | rect=' + Math.round(rect.left) + ',' + Math.round(rect.top) + ' ' +
+            Math.round(rect.width) + '×' + Math.round(rect.height) +
             ' | display=' + cs.display + ' / visibility=' + cs.visibility;
     }
     function theaterDetected() {
@@ -544,6 +547,17 @@
             const best = bestCandidate();
             return { el: best ? best.el : null, selector: best ? best.selector : 'лучший кандидат', kind: 'inline' };
         }
+        if (mode === 11) {
+            const best = bestCandidate();
+            if (!best) return { el: null, selector: 'внешний контейнер side-nav', kind: 'stack' };
+            const sideNav = best.el.matches('.side-nav') ? best.el : best.el.closest('.side-nav');
+            const outer = sideNav && sideNav.parentElement;
+            return {
+                el: outer || sideNav || best.el,
+                selector: outer ? 'внешний контейнер родителя .side-nav' : (sideNav ? '.side-nav' : best.selector),
+                kind: 'stack'
+            };
+        }
         return { el: null, selector: '', kind: 'none' };
     }
     function runMode(mode, fromHover = false) {
@@ -590,9 +604,35 @@
             return;
         }
         activeTarget = selected.el;
-        if (selected.kind === 'parent') activeTarget.classList.add('tts4-force-parent');
-        else if (selected.kind === 'inline') forceInline(activeTarget);
-        else activeTarget.classList.add('tts4-force');
+        if (selected.kind === 'parent') {
+            activeTarget.classList.add('tts4-force-parent');
+        } else if (selected.kind === 'inline') {
+            forceInline(activeTarget);
+        } else if (selected.kind === 'stack') {
+            // The audit showed the actual .side-nav lives inside an ancestor with
+            // z-index:10 and a stage container with overflow:hidden. Raise the
+            // parent stacking context itself, not just #side-nav inside it.
+            forceInline(activeTarget);
+            setImportant(activeTarget, 'position', 'fixed');
+            setImportant(activeTarget, 'top', '0px');
+            setImportant(activeTarget, 'left', '0px');
+            setImportant(activeTarget, 'right', 'auto');
+            setImportant(activeTarget, 'bottom', '0px');
+            setImportant(activeTarget, 'width', 'min(280px, 88vw)');
+            setImportant(activeTarget, 'min-width', 'min(280px, 88vw)');
+            setImportant(activeTarget, 'max-width', '88vw');
+            setImportant(activeTarget, 'height', '100vh');
+            setImportant(activeTarget, 'max-height', '100vh');
+            setImportant(activeTarget, 'overflow', 'visible');
+            setImportant(activeTarget, 'z-index', '2147483646');
+            setImportant(activeTarget, 'transform', 'none');
+            setImportant(activeTarget, 'translate', 'none');
+            setImportant(activeTarget, 'pointer-events', 'auto');
+            setImportant(activeTarget, 'background', 'transparent');
+            setImportant(activeTarget, 'box-shadow', 'none');
+        } else {
+            activeTarget.classList.add('tts4-force');
+        }
 
         previewOpen = true;
         setStatus('РЕЖИМ ' + mode + ': применён «' + selected.selector + '». Если появилась настоящая панель трансляций — сообщи номер ' + mode + '.\n' + describe(activeTarget));
@@ -605,7 +645,7 @@
     function resetAll() {
         clearTimers();
         removeAppliedStyles();
-        selectedMode = 1;
+        selectedMode = 11;
         reportEl.value = '';
         setStatus('Сброшено. Выбери режим 1–10. Панель диагностики остаётся открытой.');
     }
@@ -661,5 +701,5 @@
         if (!previewOpen) renderStatus();
     }, 400);
 
-    setStatus('Выбери режим 1–9 или нажми 10, чтобы проверить CSS-правила, скрывающие навигацию.');
+    setStatus('Режим 11 по умолчанию проверяет внешний контейнер панели. При необходимости выбери 1–10 для диагностики.');
 })();
