@@ -1,22 +1,29 @@
 # Twitch Theater Sidebar — diagnostic build
 
-This Tampermonkey userscript provides numbered reveal tests and a CSS audit for Twitch's original left navigation. It does not clone channel listings.
+This Tampermonkey userscript tests ways to reveal Twitch's **original** left navigation ("For You"). It does not clone the list of streams.
 
 ## Install / update
 
-Open the [Raw userscript](https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js) in Tampermonkey. Automatic update metadata points to this stable Raw URL.
+Open the [Raw userscript](https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js) in Tampermonkey. Automatic updates use the same stable Raw URL.
 
-## Important: old copies
+## Current default: Mode 11
 
-Earlier revisions used the name **Twitch Theater Sidebar on Hover**, while the diagnostic build has a different name. Tampermonkey can therefore leave an earlier copy enabled separately. Version 4.2.0 periodically removes old CSS/styles/classes used by the earlier revisions, but it is still recommended to disable any duplicate/old copy in the Tampermonkey dashboard.
+The latest CSS audit for `https://www.twitch.tv/melharucos` showed that `#side-nav` and its ancestors have visible computed styles, with no matching hide rule found in accessible stylesheets. The actual `.side-nav` is inside a wrapper with `position: relative; z-index: 10`, while the stream stage above it has `overflow: hidden`.
 
-The user's other Twitch helper script was checked; it hides a blank spacer and Drops/Rewards buttons in the chat toolbar, not the left navigation.
+Mode **11 — External wrapper** is now the default edge-hover action. It temporarily positions the actual parent wrapper of `.side-nav` above the player, rather than only moving the inner `#side-nav` node.
 
-## Test / diagnose
+## Diagnostic modes
 
-1. Open a Twitch stream and turn on theater mode.
-2. If modes 1–9 do not reveal the panel, press **10. Кто скрывает?**
-3. The report shows the candidate element, computed styles on it and ancestors, and matching CSS rules with stylesheet labels. A `chrome-extension://` or `moz-extension://` URL can identify an extension injecting a rule.
-4. The report is selected in the text field; press **Ctrl+C** and send the full text.
+1. `#side-nav`
+2. aria-label navigation
+3. `.side-nav`
+4. `data-test-selector`
+5. `data-a-target`
+6. parent wrapper of the strongest navigation candidate
+7. force inline styles on the candidate
+8. Twitch's native expand button
+9. outline candidate elements
+10. CSS audit: computed styles and accessible matching rules
+11. external stacking wrapper: intended edge-hover default based on the audit
 
-Mode 10 inspects accessible CSS rules and inline styles. Cross-origin sheets may block rule inspection; that is shown in the report. No page-wide MutationObserver is used.
+No page-wide MutationObserver is used.
