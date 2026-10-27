@@ -3,7 +3,7 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      5.4.0
+// @version      5.4.1
 // @description  Auto-collapse Twitch's native sidebar in theater mode and reveal its icon rail on hover.
 // @match        https://www.twitch.tv/*
 // @noframes
@@ -649,7 +649,7 @@
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape' && settingsPanelOpen) {
             closeSettingsPanel();
-            event.stopPropagation();
+            // Let Twitch handle Escape too, so its native chat menu can close normally.
         }
     }, true);
 
