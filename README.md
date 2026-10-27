@@ -15,6 +15,9 @@ Tampermonkey userscript that smoothly slides Twitch's **original left navigation
 - Smooth slide-in/slide-out animation with no decorative strip at the screen edge.
 - Automatically uses Twitch's native collapse control in theater mode, leaving only stream avatars visible; restores the prior expanded/collapsed state when leaving theater mode.
 - The wrapper background is taken from the actual Twitch sidebar theme, preventing a transparent gap if the collapsed rail has a few unused pixels.
+- Hovering a live channel avatar briefly opens a small, muted Twitch video preview; it disappears immediately when the pointer leaves the avatar.
+- The preview shows the channel name and viewer count by default, without category/extra labels.
+- Open the chat gear menu and choose **Настройки Theater Sidebar** to enable/disable previews or show category text. Choices are saved locally.
 - Keeps the panel open while the pointer is over it; closes after moving away, on outside click, or Escape.
 - Restores the wrapper's prior custom properties and removes temporary classes when theater mode ends.
 - No page-wide MutationObserver; follows theater toggles and SPA replacements with a lightweight poll.
