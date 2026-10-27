@@ -351,15 +351,29 @@
             const login = link ? parseChannelLogin(link.getAttribute('href') || '') : '';
             const title = extractChannelTitle(card, link || card, login);
             const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
-            const textNodes = [];
+            const allTextNodes = [];
             while (walker.nextNode()) {
                 const node = walker.currentNode;
                 if (!node.nodeValue || !node.nodeValue.trim()) continue;
                 const parent = node.parentElement;
                 if (!parent || parent.closest('[data-tts-hidden-extra-label="true"]')) continue;
-                if (isProtectedSidebarText(parent, node.nodeValue, title, login)) continue;
-                textNodes.push(node);
+                allTextNodes.push(node);
             }
+            // If Twitch changes its title class, preserve the first non-metadata text node as a fallback title.
+            const fallbackTitleNode = allTextNodes.find(node => {
+                const parent = node.parentElement;
+                if (!parent) return false;
+                if (parent.closest(
+                    '[class*="metadata" i],[class*="description" i],[class*="category" i],' +
+                    '[class*="game" i],[class*="subtitle" i],[class*="live-status" i]'
+                )) return false;
+                if (parent.closest('button,[role="button"],[data-a-target="side-nav-arrow"]')) return false;
+                return true;
+            });
+            const textNodes = allTextNodes.filter(node =>
+                node !== fallbackTitleNode &&
+                !isProtectedSidebarText(node.parentElement, node.nodeValue, title, login)
+            );
 
             for (const node of textNodes) {
                 const parent = node.parentNode;
