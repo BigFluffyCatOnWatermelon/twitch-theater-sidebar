@@ -3,7 +3,7 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      2.0.5
+// @version      2.0.6
 // @description  Slide Twitch's original For You/sidebar out from the left edge in theater mode.
 // @match        https://www.twitch.tv/*
 // @noframes
@@ -71,13 +71,15 @@
 
     const root = document.documentElement;
 
+    // Prefer the actual navigation root. A descendant can also have .side-nav,
+    // but moving that descendant alone does not reveal Twitch's full "For You" panel.
     const SIDEBAR_SELECTORS = [
-        '.side-nav',
         '#side-nav',
         '[data-test-selector="side-nav"]',
-        '[data-a-target="side-nav-bar"]',
         '[aria-label="Left Navigation"]',
-        '.side-bar-contents nav'
+        '.side-bar-contents nav',
+        '[data-a-target="side-nav-bar"]',
+        '.side-nav'
     ];
 
     const THEATER_SELECTORS = [
@@ -345,6 +347,12 @@
 
     document.addEventListener('mousemove', event => {
         lastPointerX = event.clientX;
+
+        // Re-check only while the pointer is at the activation edge. This catches
+        // Theater Mode immediately even if Twitch's layout changed after the last poll.
+        if (event.clientX <= CONFIG.edgeWidth && !theaterActive && isTheaterMode()) {
+            syncState();
+        }
         if (!theaterActive) return;
 
         if (event.clientX <= CONFIG.edgeWidth) {
