@@ -3,7 +3,7 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      5.2.0
+// @version      5.3.0
 // @description  Auto-collapse Twitch's native sidebar in theater mode and reveal its icon rail on hover.
 // @match        https://www.twitch.tv/*
 // @noframes
@@ -29,6 +29,7 @@
     const ROOT_CLASS = 'tts-hover-theater';
     const HOST_CLASS = 'tts-hover-host';
     const OPEN_CLASS = 'tts-hover-open';
+    const INSTANT_CLASS = 'tts-hover-instant';
     const STYLE_ID = 'tts-hover-style';
 
     // Remove UI/styles created by previous experimental builds.
@@ -77,6 +78,10 @@
             'transition:transform ' + CONFIG.animationMs + 'ms cubic-bezier(.22,1,.36,1),width 140ms ease,min-width 140ms ease,box-shadow ' + CONFIG.animationMs + 'ms ease!important;' +
             'pointer-events:none!important;will-change:transform,width;' +
         '}' +
+        // The host is moved from Twitch's normal layout into a fixed off-screen
+        // position on activation. Disable transitions for that first layout change,
+        // otherwise the expanded sidebar animates across the screen and flashes.
+        'html.' + ROOT_CLASS + ' .' + HOST_CLASS + '.' + INSTANT_CLASS + '{transition:none!important;}' +
         'html.' + ROOT_CLASS + ' .' + HOST_CLASS + '.' + OPEN_CLASS + ' {' +
             'transform:translate3d(0,0,0)!important;pointer-events:auto!important;' +
             'box-shadow:5px 0 24px rgba(0,0,0,.38)!important;' +
@@ -220,7 +225,7 @@
 
     function releaseHost() {
         if (activeHost) {
-            activeHost.classList.remove(OPEN_CLASS, HOST_CLASS);
+            activeHost.classList.remove(OPEN_CLASS, HOST_CLASS, INSTANT_CLASS);
             restoreHostProperties(activeHost);
         }
         activeHost = null;
@@ -271,9 +276,14 @@
 
         host.style.setProperty('--tts-hover-width', (currentCollapsed ? collapsedWidth : expandedWidth) + 'px');
         host.style.setProperty('--tts-hover-bg', readSidebarBackground(nav));
+        // Apply the hidden position without animating from Twitch's visible layout.
+        host.classList.add(HOST_CLASS, INSTANT_CLASS);
         document.documentElement.classList.add(ROOT_CLASS);
-        host.classList.add(HOST_CLASS);
         syncHostWidth();
+
+        window.requestAnimationFrame(() => {
+            if (host.isConnected) host.classList.remove(INSTANT_CLASS);
+        });
 
         if (wasOpen) scheduleOpen();
     }
@@ -399,6 +409,19 @@
             )
             : null;
         if (!toggle) return;
+
+        // Prepare the sidebar during the capture phase of the entry click. Both
+        // positioning it off-screen and collapsing it happen before the browser's
+        // next paint, so the expanded panel is never shown during the theater switch.
+        if (!theaterModeDetected()) {
+            const nav = findNav();
+            const host = findHost(nav);
+            if (nav && host) {
+                activateHost(nav, host);
+                ensureNativeSidebarCollapsed(nav);
+            }
+        }
+
         window.setTimeout(() => { syncState(); syncHostWidth(); }, 0);
         window.setTimeout(() => { syncState(); syncHostWidth(); }, 160);
         window.setTimeout(() => { syncState(); syncHostWidth(); }, 340);
