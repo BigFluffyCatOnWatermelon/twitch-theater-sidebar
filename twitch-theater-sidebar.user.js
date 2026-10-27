@@ -3,7 +3,7 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      5.4.7
+// @version      5.4.8
 // @description  Theater-mode sidebar with fast cached thumbnail previews and configurable controls.
 // @match        https://www.twitch.tv/*
 // @noframes
@@ -210,19 +210,19 @@
             'color:#adadb8;font-size:11px;margin-top:14px;' +
         '}' ;
 
-    // Twitch creates its native channel-preview tooltip in a separate dialog layer outside #side-nav.
-    // Hide that portal only while our theater-mode class is active; our own preview has a different ID.
+    // Hide Twitch's native tooltip only while the pointer is actually over the avatar image.
+    // The native channel description remains available when hovering the surrounding card/block.
     style.textContent +=
-        'html.' + ROOT_CLASS + ' .tw-dialog-layer:has(.online-side-nav-channel-tooltip__body),' +
-        'html.' + ROOT_CLASS + ' .tw-dialog-layer:has(.side-nav-guest-star-tooltip__body){' +
+        'html.' + ROOT_CLASS + ':has(#side-nav img.tw-image-avatar:hover, #side-nav .side-nav-card__avatar img:hover, #side-nav .tw-avatar img:hover) .tw-dialog-layer:has(.online-side-nav-channel-tooltip__body),' +
+        'html.' + ROOT_CLASS + ':has(#side-nav img.tw-image-avatar:hover, #side-nav .side-nav-card__avatar img:hover, #side-nav .tw-avatar img:hover) .tw-dialog-layer:has(.side-nav-guest-star-tooltip__body){' +
             'display:none!important;visibility:hidden!important;pointer-events:none!important;' +
         '}' +
-        'html.' + ROOT_CLASS + ' .tw-dialog-layer .online-side-nav-channel-tooltip__body,' +
-        'html.' + ROOT_CLASS + ' .tw-dialog-layer .side-nav-guest-star-tooltip__body{' +
+        'html.' + ROOT_CLASS + ':has(#side-nav img.tw-image-avatar:hover, #side-nav .side-nav-card__avatar img:hover, #side-nav .tw-avatar img:hover) .tw-dialog-layer .online-side-nav-channel-tooltip__body,' +
+        'html.' + ROOT_CLASS + ':has(#side-nav img.tw-image-avatar:hover, #side-nav .side-nav-card__avatar img:hover, #side-nav .tw-avatar img:hover) .tw-dialog-layer .side-nav-guest-star-tooltip__body{' +
             'display:none!important;visibility:hidden!important;pointer-events:none!important;' +
         '}';
 
-    const NAV_SELECTOR = '#side-nav';
+        const NAV_SELECTOR = '#side-nav';
     const THEATER_SELECTORS = [
         '.channel-root__scroll-area--theatre-mode',
         '.twilight-main--theatre',
@@ -245,6 +245,7 @@
     let syncTimer = null;
 
     const SETTINGS_KEY = 'tts-theater-sidebar-preferences-v1';
+    const ORIGINAL_SIDEBAR_STATE_KEY = 'tts-theater-sidebar-pre-theater-state-v1';
     const DEFAULT_PREFERENCES = Object.freeze({
         previewEnabled: true,
         previewWidth: 360,
@@ -258,6 +259,8 @@
     let previewCard = null;
     let previewAnchor = null;
     let previewData = null;
+    let previewThumbnailRetryTimer = null;
+    let previewThumbnailRetryCount = 0;
     let thumbnailPreloadCache = new Map();
     const channelInfoCache = new Map();
     let settingsPanel = null;
@@ -408,10 +411,10 @@
     function getChannelHoverHit(target) {
         if (!(target instanceof Element)) return null;
         const avatar = target.closest(
-            '#side-nav .side-nav-card__avatar,' +
-            '#side-nav .tw-avatar,' +
             '#side-nav img.tw-image-avatar,' +
-            '#side-nav [data-a-target="side-nav-card-avatar"]'
+            '#side-nav .side-nav-card__avatar img,' +
+            '#side-nav .tw-avatar img,' +
+            '#side-nav [data-a-target="side-nav-card-avatar"] img'
         );
         if (!avatar) return null;
         const nav = findNav();
@@ -422,8 +425,9 @@
         const login = parseChannelLogin(link.getAttribute('href') || '');
         if (!login) return null;
         const card = link.closest('.side-nav-card, [data-a-target="side-nav-card"]') || link;
-        if (avatar.closest('.side-nav-card__avatar--offline') ||
-            link.classList.contains('side-nav-card__link--offline')) return null;
+        const isMarkedOffline = !!avatar.closest('.side-nav-card__avatar--offline') ||
+            !!card.querySelector('.side-nav-card__avatar--offline') ||
+            link.classList.contains('side-nav-card__link--offline');
 
         const cached = channelInfoCache.get(login) || {};
         const extractedName = extractChannelTitle(card, link, login);
@@ -431,10 +435,19 @@
             ? extractedName : (cached.channelName || login);
         const viewers = cached.apiVerified ? (cached.viewers || '') : '';
         channelInfoCache.set(login, { ...cached, channelName, viewers });
-        return { avatar, link, card, login, channelName, streamTitle: cached.streamTitle || '', viewers };
+        return {
+            avatar,
+            link,
+            card,
+            login,
+            channelName,
+            streamTitle: cached.streamTitle || '',
+            viewers,
+            isMarkedOffline
+        };
     }
 
-    function cacheSidebarChannelInfo(nav) {
+        function cacheSidebarChannelInfo(nav) {
         if (!nav) return;
         for (const link of nav.querySelectorAll('a[href]')) {
             const login = parseChannelLogin(link.getAttribute('href') || '');
@@ -458,11 +471,95 @@
     const STREAM_INFO_CACHE_MS = 45000;
     const streamInfoCache = new Map();
     const streamInfoRequests = new Map();
+    let streamBatchPromise = null;
+    let streamBatchLastAttemptAt = 0;
 
-    async function fetchLiveStreamInfo(login) {
+    function storeStreamInfo(login, user) {
+        const stream = user && user.stream;
+        if (!user || !stream) {
+            streamInfoCache.set(login, { value: null, expiresAt: Date.now() + 12000 });
+            return null;
+        }
+        const value = {
+            channelName: user.displayName || login,
+            streamTitle: typeof stream.title === 'string' ? stream.title.trim() : '',
+            viewers: Number.isFinite(Number(stream.viewersCount))
+                ? Number(stream.viewersCount).toLocaleString() : '',
+            category: stream.game && stream.game.name ? stream.game.name : ''
+        };
+        streamInfoCache.set(login, { value, expiresAt: Date.now() + STREAM_INFO_CACHE_MS });
+        channelInfoCache.set(login, { ...(channelInfoCache.get(login) || {}), ...value, apiVerified: true });
+        return value;
+    }
+
+    function fetchLiveStreamInfoBatch(logins) {
+        const now = Date.now();
+        const uniqueLogins = [...new Set(logins)].filter(login => /^[a-zA-Z0-9_]{1,25}$/.test(login));
+        const missing = uniqueLogins.filter(login => {
+            const cached = streamInfoCache.get(login);
+            return !(cached && cached.expiresAt > now) && !streamInfoRequests.has(login);
+        });
+        if (!missing.length) return Promise.resolve();
+        if (streamBatchPromise) return streamBatchPromise;
+        if (now - streamBatchLastAttemptAt < 8000) return Promise.resolve();
+        streamBatchLastAttemptAt = now;
+
+        const queryFields = 'displayName stream { title viewersCount game { name } }';
+        const aliases = missing.map((login, index) =>
+            'u' + index + ': user(login: "' + login + '") { ' + queryFields + ' }'
+        );
+        const batchRequest = (async () => {
+            try {
+                const response = await fetch('https://gql.twitch.tv/gql', {
+                    method: 'POST',
+                    headers: {
+                        'Client-ID': TWITCH_WEB_CLIENT_ID,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: 'query TheaterSidebarPreviewBatch { ' + aliases.join(' ') + ' }'
+                    }),
+                    credentials: 'omit',
+                    cache: 'no-store'
+                });
+                if (!response.ok) throw new Error('Twitch GQL batch request failed: ' + response.status);
+                const payload = await response.json();
+                const data = payload && payload.data ? payload.data : {};
+                const result = {};
+                missing.forEach((login, index) => {
+                    result[login] = storeStreamInfo(login, data['u' + index] || null);
+                });
+                return result;
+            } catch (_) {
+                return {};
+            }
+        })();
+
+        const perLoginPromises = missing.map(login => {
+            let perLoginPromise;
+            perLoginPromise = batchRequest
+                .then(result => result[login] || null)
+                .finally(() => {
+                    if (streamInfoRequests.get(login) === perLoginPromise) {
+                        streamInfoRequests.delete(login);
+                    }
+                });
+            streamInfoRequests.set(login, perLoginPromise);
+            return perLoginPromise;
+        });
+
+        streamBatchPromise = Promise.all(perLoginPromises)
+            .then(() => undefined)
+            .catch(() => undefined)
+            .finally(() => { streamBatchPromise = null; });
+        return streamBatchPromise;
+    }
+
+    async function fetchLiveStreamInfo(login, forceRefresh = false) {
+        if (forceRefresh) streamInfoCache.delete(login);
         const now = Date.now();
         const cached = streamInfoCache.get(login);
-        if (cached && cached.expiresAt > now) return cached.value;
+        if (!forceRefresh && cached && cached.expiresAt > now) return cached.value;
         if (streamInfoRequests.has(login)) return streamInfoRequests.get(login);
 
         const request = (async () => {
@@ -483,23 +580,7 @@
                 if (!response.ok) throw new Error('Twitch GQL request failed: ' + response.status);
                 const payload = await response.json();
                 const user = payload && payload.data && payload.data.user;
-                const stream = user && user.stream;
-                if (!user || !stream) {
-                    streamInfoCache.set(login, { value: null, expiresAt: Date.now() + 15000 });
-                    return null;
-                }
-
-                const value = {
-                    channelName: user.displayName || login,
-                    streamTitle: typeof stream.title === 'string' ? stream.title.trim() : '',
-                    viewers: Number.isFinite(Number(stream.viewersCount))
-                        ? Number(stream.viewersCount).toLocaleString() : '',
-                    category: stream.game && stream.game.name ? stream.game.name : ''
-                };
-                streamInfoCache.set(login, { value, expiresAt: Date.now() + STREAM_INFO_CACHE_MS });
-                channelInfoCache.set(login, { ...(channelInfoCache.get(login) || {}), ...value, apiVerified: true });
-                return value;
-            } catch (error) {
+                return storeStreamInfo(login, user);            } catch (error) {
                 // Keep preview usable when Twitch's internal endpoint is unavailable.
                 return null;
             } finally {
@@ -517,38 +598,60 @@
         return '640x360';
     }
 
-    function thumbnailUrl(login, size = thumbnailSizeForPreview()) {
+    function thumbnailUrl(login, size = thumbnailSizeForPreview(), forceRefresh = false) {
         const intervalMs = (Number(preferences.refreshInterval) || 30) * 1000;
-        const timeBucket = Math.floor(Date.now() / intervalMs);
+        const cacheKey = forceRefresh ? String(Date.now()) : String(Math.floor(Date.now() / intervalMs));
         return 'https://static-cdn.jtvnw.net/previews-ttv/live_user_' +
-            encodeURIComponent(login.toLowerCase()) + '-' + size + '.jpg?t=' + timeBucket;
+            encodeURIComponent(login.toLowerCase()) + '-' + size + '.jpg?t=' + cacheKey;
+    }
+
+    function preloadOneThumbnail(login, forceRefresh = false) {
+        const url = thumbnailUrl(login, thumbnailSizeForPreview(), forceRefresh);
+        if (!forceRefresh && thumbnailPreloadCache.has(url)) return thumbnailPreloadCache.get(url);
+        const image = new Image();
+        image.decoding = 'async';
+        image.loading = 'eager';
+        image.onload = () => {};
+        image.onerror = () => {};
+        image.src = url;
+        thumbnailPreloadCache.set(url, image);
+        return image;
     }
 
     function preloadSidebarThumbnails() {
         if (!preferences.previewEnabled || !isTheater) return;
         const nav = findNav();
         if (!nav) return;
-        let count = 0;
+
+        const logins = [];
         for (const link of nav.querySelectorAll('a[href]')) {
             const login = parseChannelLogin(link.getAttribute('href') || '');
-            if (!login) continue;
+            if (!login || logins.includes(login)) continue;
+            logins.push(login);
+
             const card = link.closest('.side-nav-card, [data-a-target="side-nav-card"]') || link;
-            if (card.querySelector('.side-nav-card__avatar--offline') ||
-                link.classList.contains('side-nav-card__link--offline')) continue;
-            const url = thumbnailUrl(login);
-            if (thumbnailPreloadCache.has(url)) continue;
-            const image = new Image();
-            image.decoding = 'async';
-            image.onload = () => {};
-            image.onerror = () => {};
-            image.src = url;
-            thumbnailPreloadCache.set(url, image);
-            count += 1;
-            if (count >= 35) break;
+            const markedOffline = !!card.querySelector('.side-nav-card__avatar--offline') ||
+                link.classList.contains('side-nav-card__link--offline');
+            const info = streamInfoCache.get(login);
+            if (!markedOffline || (info && info.expiresAt > Date.now() && info.value)) {
+                preloadOneThumbnail(login);
+            }
+            if (logins.length >= 35) break;
         }
+
+        // Batch-pull display names and live stream metadata so preview text is ready on hover.
+        fetchLiveStreamInfoBatch(logins).then(() => {
+            for (const login of logins) {
+                const info = streamInfoCache.get(login);
+                if (info && info.expiresAt > Date.now() && info.value) preloadOneThumbnail(login);
+            }
+        });
     }
 
     function removePreviewCard() {
+        if (previewThumbnailRetryTimer !== null) clearTimeout(previewThumbnailRetryTimer);
+        previewThumbnailRetryTimer = null;
+        previewThumbnailRetryCount = 0;
         if (previewCard) previewCard.remove();
         previewCard = null;
         previewAnchor = null;
@@ -588,11 +691,12 @@
     function showChannelPreview(hit) {
         if (!isTheater || !theaterModeDetected() || !preferences.previewEnabled || !hit) return;
         if (previewAnchor === hit.avatar && previewCard && previewCard.isConnected) {
-            previewData = hit;
+            previewData = { ...previewData, ...hit };
             renderPreviewDetails();
             const sameLogin = hit.login;
-            fetchLiveStreamInfo(sameLogin).then(info => {
-                if (!info || !previewCard || !previewCard.isConnected || !previewData || previewData.login !== sameLogin) return;
+            fetchLiveStreamInfo(sameLogin, !!hit.isMarkedOffline).then(info => {
+                if (!info || !previewCard || !previewCard.isConnected ||
+                    !previewData || previewData.login !== sameLogin) return;
                 previewData = { ...previewData, ...info };
                 renderPreviewDetails();
             });
@@ -631,12 +735,8 @@
         if (avatarImage && avatarImage.src) image.style.backgroundImage = 'url("' + avatarImage.src.replace(/["\\]/g, '') + '")';
         image.addEventListener('load', () => image.classList.add('tts-preview-image-loaded'));
         image.addEventListener('error', () => {
-            if (image.dataset.fallbackTried !== '1') {
-                image.dataset.fallbackTried = '1';
-                image.src = thumbnailUrl(hit.login, thumbnailSizeForPreview() === '320x180' ? '440x248' : '320x180');
-            } else {
-                image.classList.remove('tts-preview-image-loaded');
-            }
+            image.classList.remove('tts-preview-image-loaded');
+            image.dataset.lastLoadFailed = '1';
         });
         image.src = thumbnailUrl(hit.login);
 
@@ -647,11 +747,30 @@
         applyPreferences();
         renderPreviewDetails();
         positionPreview();
+
         const cachedImage = thumbnailPreloadCache.get(image.src);
         if (cachedImage && cachedImage.complete && cachedImage.naturalWidth > 0) image.src = cachedImage.src;
 
+        // Twitch may not have generated a live_user thumbnail for a stream that just went live.
+        // Retry with a fresh CDN cache key while the avatar remains hovered.
+        const retryDelays = [1200, 2200, 4000, 7000];
+        const scheduleThumbnailRetry = () => {
+            if (previewThumbnailRetryCount >= retryDelays.length) return;
+            const delay = retryDelays[previewThumbnailRetryCount];
+            previewThumbnailRetryTimer = window.setTimeout(() => {
+                previewThumbnailRetryTimer = null;
+                if (!previewCard || !previewCard.isConnected ||
+                    previewCard !== card || previewAnchor !== hit.avatar ||
+                    !hit.avatar.matches(':hover')) return;
+                previewThumbnailRetryCount += 1;
+                image.src = thumbnailUrl(hit.login, thumbnailSizeForPreview(), true);
+                scheduleThumbnailRetry();
+            }, delay);
+        };
+        scheduleThumbnailRetry();
+
         const requestedLogin = hit.login;
-        fetchLiveStreamInfo(requestedLogin).then(info => {
+        fetchLiveStreamInfo(requestedLogin, !!hit.isMarkedOffline).then(info => {
             if (!info || !previewCard || !previewCard.isConnected ||
                 !previewData || previewData.login !== requestedLogin) return;
             previewData = { ...previewData, ...info };
@@ -1004,6 +1123,14 @@
         const hit = getChannelHoverHit(event.target);
         if (!hit) return;
         if (event.relatedTarget instanceof Node && hit.avatar.contains(event.relatedTarget)) return;
+        if (hit.isMarkedOffline) {
+            fetchLiveStreamInfo(hit.login, true).then(info => {
+                if (!info || !hit.avatar.isConnected || !hit.avatar.matches(':hover') ||
+                    !preferences.previewEnabled || !isTheater || !theaterModeDetected()) return;
+                showChannelPreview({ ...hit, ...info, isMarkedOffline: false });
+            });
+            return;
+        }
         showChannelPreview(hit);
     }, true);
 
@@ -1061,13 +1188,36 @@
             document.querySelector('[data-a-target="side-nav-arrow"]');
     }
 
+    function readStoredSidebarState() {
+        try {
+            const value = sessionStorage.getItem(ORIGINAL_SIDEBAR_STATE_KEY);
+            if (value === 'expanded') return true;
+            if (value === 'collapsed') return false;
+        } catch (_) {}
+        return null;
+    }
+
+    function storeSidebarState(expanded) {
+        try {
+            sessionStorage.setItem(ORIGINAL_SIDEBAR_STATE_KEY, expanded ? 'expanded' : 'collapsed');
+        } catch (_) {}
+    }
+
+    function clearStoredSidebarState() {
+        try { sessionStorage.removeItem(ORIGINAL_SIDEBAR_STATE_KEY); } catch (_) {}
+    }
+
     function ensureNativeSidebarCollapsed(nav) {
         if (!nav) return;
 
-        // Capture the user's original preference once, then keep the native Twitch
-        // sidebar collapsed for the whole theater-mode session.
+        // Persist the pre-theater native state. If Twitch is reloaded in theater mode,
+        // recover the original state saved before our auto-collapse.
         if (sidebarWasExpandedBeforeTheater === null) {
-            sidebarWasExpandedBeforeTheater = !isSidebarCollapsed(nav);
+            const savedState = readStoredSidebarState();
+            sidebarWasExpandedBeforeTheater = savedState === null
+                ? !isSidebarCollapsed(nav)
+                : savedState;
+            if (savedState === null) storeSidebarState(sidebarWasExpandedBeforeTheater);
         }
         if (isSidebarCollapsed(nav)) return;
 
@@ -1094,6 +1244,7 @@
     function restoreNativeSidebarState() {
         const shouldBeExpanded = sidebarWasExpandedBeforeTheater;
         sidebarWasExpandedBeforeTheater = null;
+        clearStoredSidebarState();
         if (shouldBeExpanded === null) return;
 
         const nav = findNav();
