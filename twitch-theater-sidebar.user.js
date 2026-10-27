@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name         Twitch Theater Sidebar on Hover
+// @name         Twitch Theater Sidebar — Diagnostic Modes
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      3.0.0
-// @description  Reveal Twitch's original "For You" sidebar at the left edge in theater mode.
+// @version      4.0.0
+// @description  Numbered diagnostic modes for Twitch's native left navigation.
 // @match        https://www.twitch.tv/*
 // @noframes
 // @updateURL    https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js
@@ -17,69 +17,103 @@
 (() => {
     'use strict';
 
-    const CFG = {
-        edge: 30,
-        width: 270,
-        showDelay: 70,
-        hideDelay: 260,
-        animation: 220,
-        poll: 1200
-    };
+    const ID = 'tts4';
+    const EDGE_WIDTH = 32;
+    const SHOW_DELAY = 70;
+    const HIDE_DELAY = 260;
+    const PANEL_WIDTH = 280;
 
-    const ROOT_CLASS = 'tts30-layout';
-    const NAV_CLASS = 'tts30-native-nav';
-    const OPEN_CLASS = 'tts30-open';
-    const STYLE_ID = 'tts30-style';
-
-    // Clean up obsolete UI made by older versions. The native Twitch navigation is untouched here.
+    document.getElementById(ID + '-toolbar')?.remove();
+    document.getElementById(ID + '-style')?.remove();
     document.getElementById('twitch-theater-sidebar-panel')?.remove();
     document.getElementById('twitch-theater-sidebar-trigger')?.remove();
-    document.getElementById('tms-overlay')?.remove();
-    document.getElementById('tms-trigger')?.remove();
-    document.getElementById(STYLE_ID)?.remove();
+    document.getElementById('twitch-theater-sidebar-style')?.remove();
+    document.getElementById('tts30-style')?.remove();
 
-    const css = document.createElement('style');
-    css.id = STYLE_ID;
-    css.textContent =
-        'html.' + ROOT_CLASS + ' .' + NAV_CLASS + ' {' +
-        ' position:fixed!important;' +
-        ' top:var(--tts30-top,0px)!important;' +
-        ' left:0!important; right:auto!important; bottom:0!important;' +
-        ' width:min(' + CFG.width + 'px,88vw)!important;' +
-        ' min-width:min(' + CFG.width + 'px,88vw)!important;' +
-        ' max-width:88vw!important; height:auto!important;' +
-        ' min-height:0!important; max-height:none!important; margin:0!important;' +
-        ' box-sizing:border-box!important; display:flex!important;' +
-        ' flex-direction:column!important; align-items:stretch!important;' +
-        ' overflow-x:hidden!important; overflow-y:auto!important;' +
-        ' visibility:visible!important; opacity:1!important;' +
-        ' z-index:2147483000!important;' +
-        ' background:var(--color-background-base,#0e0e10)!important;' +
-        ' border-right:1px solid rgba(255,255,255,.12)!important;' +
-        ' transform:translate3d(calc(-100% - 12px),0,0)!important;' +
-        ' transition:transform ' + CFG.animation + 'ms cubic-bezier(.22,1,.36,1)!important;' +
-        ' pointer-events:none!important; will-change:transform;' +
+    const style = document.createElement('style');
+    style.id = ID + '-style';
+    style.textContent =
+        '.tts4-force{' +
+            'position:fixed!important;top:0!important;left:0!important;right:auto!important;bottom:0!important;' +
+            'width:min(280px,88vw)!important;min-width:min(280px,88vw)!important;max-width:88vw!important;' +
+            'height:100vh!important;height:100dvh!important;min-height:0!important;max-height:100vh!important;max-height:100dvh!important;' +
+            'margin:0!important;box-sizing:border-box!important;display:flex!important;flex-direction:column!important;' +
+            'overflow-x:hidden!important;overflow-y:auto!important;visibility:visible!important;opacity:1!important;' +
+            'transform:none!important;translate:none!important;z-index:2147483000!important;' +
+            'background:var(--color-background-base,#0e0e10)!important;color:var(--color-text-base,#efeff1)!important;' +
+            'pointer-events:auto!important;box-shadow:5px 0 24px rgba(0,0,0,.45)!important;' +
+            'border-right:1px solid rgba(255,255,255,.12)!important;' +
         '}' +
-        'html.' + ROOT_CLASS + ' .' + NAV_CLASS + '.' + OPEN_CLASS + ' {' +
-        ' transform:translate3d(0,0,0)!important; pointer-events:auto!important;' +
-        ' box-shadow:5px 0 24px rgba(0,0,0,.4)!important;' +
+        '.tts4-force-parent{' +
+            'position:fixed!important;top:0!important;left:0!important;right:auto!important;bottom:0!important;' +
+            'width:min(280px,88vw)!important;min-width:min(280px,88vw)!important;max-width:88vw!important;' +
+            'height:100vh!important;height:100dvh!important;margin:0!important;overflow:visible!important;' +
+            'visibility:visible!important;opacity:1!important;transform:none!important;translate:none!important;' +
+            'z-index:2147483000!important;pointer-events:auto!important;' +
+            'background:var(--color-background-base,#0e0e10)!important;box-shadow:5px 0 24px rgba(0,0,0,.45)!important;' +
         '}' +
-        'html.' + ROOT_CLASS + ' .' + NAV_CLASS + ' .side-nav-section,' +
-        'html.' + ROOT_CLASS + ' .' + NAV_CLASS + ' [data-a-target="side-nav-section"] {' +
-        ' width:100%!important; max-width:100%!important;' +
+        '.tts4-outline{outline:3px solid #ffb000!important;outline-offset:-3px!important;background-color:rgba(255,176,0,.07)!important;}' +
+        '#tts4-toolbar,#tts4-toolbar *{box-sizing:border-box;}' +
+        '#tts4-toolbar{' +
+            'position:fixed;top:10px;right:10px;width:min(470px,calc(100vw - 20px));max-height:min(86vh,740px);overflow:auto;' +
+            'z-index:2147483647;padding:10px;border:1px solid rgba(255,255,255,.22);border-radius:8px;' +
+            'color:#f4f4f5;background:rgba(20,20,23,.97);box-shadow:0 6px 28px rgba(0,0,0,.6);' +
+            'font:12px/1.4 Arial,sans-serif;' +
         '}' +
-        'html.' + ROOT_CLASS + ' .' + NAV_CLASS + ' .side-nav-card__title,' +
-        'html.' + ROOT_CLASS + ' .' + NAV_CLASS + ' .side-nav-card__metadata,' +
-        'html.' + ROOT_CLASS + ' .' + NAV_CLASS + ' [data-a-target="side-nav-card-metadata"] {' +
-        ' min-width:0;' +
-        '}' +
-        '@media(prefers-reduced-motion:reduce){html.' + ROOT_CLASS + ' .' + NAV_CLASS + '{transition:none!important;}}';
-    (document.head || document.documentElement).appendChild(css);
+        '#tts4-toolbar .tts4-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}' +
+        '#tts4-toolbar .tts4-title{margin:0;color:#fff;font-size:13px;font-weight:700;}' +
+        '#tts4-toolbar .tts4-status{padding:8px;margin-bottom:8px;border-radius:5px;background:rgba(255,255,255,.08);white-space:pre-wrap;overflow-wrap:anywhere;}' +
+        '#tts4-toolbar .tts4-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-bottom:8px;}' +
+        '#tts4-toolbar button{min-width:0;padding:7px 6px;border:1px solid rgba(255,255,255,.2);border-radius:5px;color:#f4f4f5;background:#303036;font:inherit;cursor:pointer;text-align:left;}' +
+        '#tts4-toolbar button:hover{background:#44444c;}' +
+        '#tts4-toolbar button.tts4-selected{border-color:#bf94ff;background:#59359a;color:white;}' +
+        '#tts4-toolbar button.tts4-action{text-align:center;}' +
+        '#tts4-toolbar .tts4-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-bottom:6px;}' +
+        '#tts4-toolbar .tts4-help{color:#c8c8d0;font-size:11px;}' +
+        '#tts4-toolbar.tts4-minimized .tts4-body{display:none;}';
+    (document.head || document.documentElement).appendChild(style);
 
-    const root = document.documentElement;
+    const toolbar = document.createElement('section');
+    toolbar.id = ID + '-toolbar';
+    toolbar.innerHTML = [
+        '<div class="tts4-head">',
+        '<div class="tts4-title">Twitch Sidebar — тест режимов</div>',
+        '<button type="button" id="tts4-minimize" title="Свернуть/развернуть">—</button>',
+        '</div>',
+        '<div class="tts4-body">',
+        '<div class="tts4-status" id="tts4-status">Запуск диагностики…</div>',
+        '<div class="tts4-grid" id="tts4-modes">',
+        '<button type="button" data-mode="1">1. #side-nav</button>',
+        '<button type="button" data-mode="2">2. aria-label</button>',
+        '<button type="button" data-mode="3">3. .side-nav</button>',
+        '<button type="button" data-mode="4">4. data-test</button>',
+        '<button type="button" data-mode="5">5. data-a-target</button>',
+        '<button type="button" data-mode="6">6. Родитель</button>',
+        '<button type="button" data-mode="7">7. Жёсткий стиль</button>',
+        '<button type="button" data-mode="8">8. Кнопка Twitch</button>',
+        '<button type="button" data-mode="9">9. Подсветка DOM</button>',
+        '</div>',
+        '<div class="tts4-actions">',
+        '<button type="button" class="tts4-action" id="tts4-show">Показать сейчас</button>',
+        '<button type="button" class="tts4-action" id="tts4-hide">Скрыть / тест края</button>',
+        '<button type="button" class="tts4-action" id="tts4-reset">Сброс</button>',
+        '</div>',
+        '<div class="tts4-help">Нажми режим 1–9: он сразу проверится. Чтобы проверить именно наведение, нажми «Скрыть / тест края», затем подведи мышь к самому левому краю. Новая панель трансляций не создаётся.</div>',
+        '</div>'
+    ].join('');
+    document.body.appendChild(toolbar);
 
-    // Prefer the native navigation root; include alternate IDs/attributes used in Twitch layouts.
-    const NAV_SELECTORS = [
+    const statusEl = toolbar.querySelector('#tts4-status');
+    const modeButtons = Array.from(toolbar.querySelectorAll('[data-mode]'));
+
+    const SELECTORS = {
+        1: '#side-nav',
+        2: '[aria-label="Left Navigation"], [aria-label*="Left Navigation" i]',
+        3: '.side-nav',
+        4: '[data-test-selector="side-nav"]',
+        5: '[data-a-target="side-nav-bar"], nav[data-a-target="side-nav-bar"]'
+    };
+    const ALL_SELECTORS = [
         '#side-nav',
         '#sideNav',
         '[aria-label="Left Navigation"]',
@@ -90,313 +124,304 @@
         '[data-a-target="side-nav-bar"]',
         '.side-nav'
     ];
-
     const THEATER_SELECTORS = [
         '.channel-root__scroll-area--theatre-mode',
         '.twilight-main--theatre',
         '[class*="theatre--"]',
         '[class*="theater--"]',
-        '[data-a-target="player-overlay-click-handler"][class*="theatre"]',
         '.channel-root--theatre',
         '.channel-root--theater',
         '[class*="channel-root"][class*="theatre"]',
-        '[class*="channel-root"][class*="theater"]',
-        'button[aria-label*="Exit Theatre Mode" i]',
-        'button[aria-label*="Exit Theater Mode" i]',
-        'button[title*="Exit Theatre Mode" i]',
-        'button[title*="Exit Theater Mode" i]'
+        '[class*="channel-root"][class*="theater"]'
     ];
 
-    let nativeNav = null;
-    let theaterMode = false;
-    let edgeFallback = false;
-    let open = false;
-    let expandedByUs = false;
-    let savedTop = null;
+    let selectedMode = 1;
+    let activeTarget = null;
+    let previewOpen = false;
+    let openedByHover = false;
+    let nativeToggleClickedByUs = false;
+    let nativeToggleButton = null;
     let showTimer = null;
     let hideTimer = null;
-    let collapseTimer = null;
+    let outlined = [];
+    let inlineOriginals = new Map();
+    let statusMessage = '';
 
-    function getNavCandidate() {
-        for (const selector of NAV_SELECTORS) {
-            let el = null;
-            try { el = document.querySelector(selector); } catch (_) {}
-            if (!el || !el.isConnected) continue;
-            if (el.querySelector('a[href], [data-a-target*="side-nav-card"]')) return el;
+    function queryOne(selector) {
+        try { return document.querySelector(selector); } catch (_) { return null; }
+    }
+    function queryAll(selector) {
+        try { return Array.from(document.querySelectorAll(selector)); } catch (_) { return []; }
+    }
+    function allCandidates() {
+        const list = [];
+        const seen = new Set();
+        for (const selector of ALL_SELECTORS) {
+            for (const el of queryAll(selector)) {
+                if (!seen.has(el) && el !== toolbar && !toolbar.contains(el)) {
+                    seen.add(el);
+                    list.push({ el, selector });
+                }
+            }
         }
-        return null;
+        return list;
     }
-
-    function onChannelRoute() {
-        const path = location.pathname.split('/').filter(Boolean);
-        if (path.length !== 1) return false;
-        const reserved = new Set([
-            'directory', 'downloads', 'inventory', 'settings', 'wallet',
-            'subscriptions', 'turbo', 'videos', 'search', 'jobs', 'p',
-            'moderator', 'popout', 'embed', 'login', 'signup'
-        ]);
-        return !reserved.has(path[0].toLowerCase());
+    function scoreNode(el) {
+        const links = el.querySelectorAll('a[href]').length;
+        const cards = el.querySelectorAll('.side-nav-card,.side-nav-card__title,[data-a-target*="side-nav-card"]').length;
+        const cls = typeof el.className === 'string' ? el.className : '';
+        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+        return links + cards * 4 + (el.id === 'side-nav' ? 80 : 0) +
+            (/side-nav/i.test(cls) ? 25 : 0) + (aria.includes('left navigation') ? 30 : 0);
     }
-
-    function hasPlayer() {
-        return !!document.querySelector(
-            'video, .video-player, [data-a-target="video-player"], ' +
-            '[data-a-target="player-overlay-click-handler"], #channel-player'
-        );
+    function bestCandidate() {
+        const candidates = allCandidates();
+        candidates.sort((a, b) => scoreNode(b.el) - scoreNode(a.el));
+        return candidates[0] || null;
     }
-
-    function detectTheater() {
+    function describe(el) {
+        if (!el) return 'не найден';
+        const tag = el.tagName ? el.tagName.toLowerCase() : '?';
+        const id = el.id ? '#' + el.id : '';
+        let cls = '';
+        if (typeof el.className === 'string') cls = el.className.trim().split(/\s+/).filter(Boolean).slice(0, 3).map(x => '.' + x).join('');
+        const rect = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const links = el.querySelectorAll('a[href]').length;
+        return tag + id + cls + ' | links=' + links +
+            ' | rect=' + Math.round(rect.width) + '×' + Math.round(rect.height) +
+            ' | display=' + cs.display + ' / visibility=' + cs.visibility;
+    }
+    function theaterDetected() {
         for (const selector of THEATER_SELECTORS) {
-            try {
-                if (document.querySelector(selector)) return true;
-            } catch (_) {}
+            if (queryOne(selector)) return selector;
         }
-
-        // Twitch sometimes renames the theater root. This read-only scan runs only on a timer.
-        for (const el of document.querySelectorAll('[class*="theatre"],[class*="theater"]')) {
-            const cls = typeof el.className === 'string'
-                ? el.className
-                : (el.className && el.className.baseVal) || '';
-            if (/(theatre|theater)/i.test(cls) && !/tts30/i.test(cls)) return true;
-        }
-
-        // Fallback for a wide player on a channel route when Twitch changes class names.
-        if (!onChannelRoute()) return false;
-        const player = document.querySelector(
-            '.video-player, [data-a-target="video-player"], ' +
-            '[data-a-target="player-overlay-click-handler"], #channel-player'
-        );
-        if (!player) return false;
-        const rect = player.getBoundingClientRect();
-        return rect.width >= window.innerWidth * 0.68 &&
-               rect.height >= window.innerHeight * 0.40;
+        return '';
     }
-
-    function calculateTop(nav) {
-        const rect = nav.getBoundingClientRect();
-        if (rect.top > 1 && rect.top < window.innerHeight * 0.5) return Math.round(rect.top);
-
-        const top = document.querySelector(
-            '#top-nav, [data-a-target="top-nav-container"], .top-nav, .top-bar'
-        );
-        if (top) {
-            const r = top.getBoundingClientRect();
-            if (r.height > 0 && r.bottom > 0 && r.bottom < 180) return Math.round(r.bottom);
-        }
-        return 0;
+    function streamRoute() {
+        const parts = location.pathname.split('/').filter(Boolean);
+        const reserved = new Set([
+            'directory','downloads','inventory','settings','wallet','subscriptions',
+            'turbo','videos','search','jobs','p','moderator','popout','embed','login','signup'
+        ]);
+        return parts.length === 1 && !reserved.has(parts[0].toLowerCase());
     }
-
-    function restoreTop(nav) {
-        if (!nav || !savedTop) return;
-        if (savedTop.value) {
-            nav.style.setProperty('--tts30-top', savedTop.value, savedTop.priority);
-        } else {
-            nav.style.removeProperty('--tts30-top');
-        }
-        savedTop = null;
+    function hasPlayer() {
+        return !!queryOne('video,.video-player,[data-a-target="video-player"],[data-a-target="player-overlay-click-handler"],#channel-player');
     }
-
-    function restoreNav() {
-        if (!nativeNav) return;
-        nativeNav.classList.remove(OPEN_CLASS, NAV_CLASS);
-        restoreTop(nativeNav);
-        nativeNav = null;
-    }
-
-    function styleNativeNav(nav) {
-        if (!nav) return false;
-        if (nativeNav === nav && nav.classList.contains(NAV_CLASS)) {
-            root.classList.add(ROOT_CLASS);
-            return true;
+    function captureInline(el, prop) {
+        let props = inlineOriginals.get(el);
+        if (!props) {
+            props = new Map();
+            inlineOriginals.set(el, props);
         }
-
-        restoreNav();
-        nativeNav = nav;
-        savedTop = {
-            value: nav.style.getPropertyValue('--tts30-top'),
-            priority: nav.style.getPropertyPriority('--tts30-top')
+        if (!props.has(prop)) props.set(prop, {
+            value: el.style.getPropertyValue(prop),
+            priority: el.style.getPropertyPriority(prop)
+        });
+    }
+    function setImportant(el, prop, value) {
+        captureInline(el, prop);
+        el.style.setProperty(prop, value, 'important');
+    }
+    function forceInline(el) {
+        const values = {
+            position:'fixed', top:'0px', left:'0px', right:'auto', bottom:'0px',
+            width:'min(280px, 88vw)', 'min-width':'min(280px, 88vw)', 'max-width':'88vw',
+            height:'100vh', 'max-height':'100vh', margin:'0px', display:'flex',
+            'flex-direction':'column', 'box-sizing':'border-box', 'overflow-x':'hidden',
+            'overflow-y':'auto', visibility:'visible', opacity:'1', transform:'none',
+            translate:'none', 'z-index':'2147483000', 'pointer-events':'auto',
+            background:'var(--color-background-base, #0e0e10)',
+            'box-shadow':'5px 0 24px rgba(0,0,0,.45)'
         };
-        nav.style.setProperty('--tts30-top', calculateTop(nav) + 'px');
-        root.classList.add(ROOT_CLASS);
-        nav.classList.add(NAV_CLASS);
-        return true;
+        for (const [prop, value] of Object.entries(values)) setImportant(el, prop, value);
     }
-
-    function toggleButton(nav) {
-        if (!nav) return null;
-        return nav.querySelector(
-            '[data-a-target="side-nav-arrow"],' +
+    function restoreInline() {
+        for (const [el, props] of inlineOriginals.entries()) {
+            for (const [prop, saved] of props.entries()) {
+                if (saved.value) el.style.setProperty(prop, saved.value, saved.priority);
+                else el.style.removeProperty(prop);
+            }
+        }
+        inlineOriginals.clear();
+    }
+    function currentToggleButton() {
+        return queryOne(
+            'button[data-a-target="side-nav-arrow"],' +
+            'button[aria-label*="Expand Side Nav" i],' +
+            'button[aria-label*="Collapse Side Nav" i],' +
             'button[aria-label*="Expand sidebar" i],' +
-            'button[aria-label*="Collapse sidebar" i],' +
-            'button[aria-label*="Expand Side Navigation" i],' +
-            'button[aria-label*="Collapse Side Navigation" i]'
+            'button[aria-label*="Collapse sidebar" i]'
         );
     }
-
-    function isCollapsed(nav) {
-        if (!nav) return false;
-        if (nav.classList.contains('side-nav--collapsed')) return true;
-        const button = toggleButton(nav);
-        return !!button && button.getAttribute('aria-expanded') === 'false';
+    function restoreNativeToggle() {
+        if (!nativeToggleClickedByUs) return;
+        const button = currentToggleButton() || nativeToggleButton;
+        if (button && button.isConnected) {
+            const label = ((button.getAttribute('aria-label') || '') + ' ' + (button.getAttribute('title') || '')).toLowerCase();
+            const expanded = button.getAttribute('aria-expanded');
+            if (expanded === 'true' || /collapse/.test(label)) button.click();
+        }
+        nativeToggleClickedByUs = false;
+        nativeToggleButton = null;
     }
-
+    function removeAppliedStyles() {
+        if (activeTarget) activeTarget.classList.remove('tts4-force', 'tts4-force-parent', 'tts4-outline');
+        for (const el of outlined) el.classList.remove('tts4-outline');
+        outlined = [];
+        restoreInline();
+        restoreNativeToggle();
+        activeTarget = null;
+        previewOpen = false;
+        openedByHover = false;
+    }
     function clearTimers() {
         clearTimeout(showTimer);
         clearTimeout(hideTimer);
-        clearTimeout(collapseTimer);
-        showTimer = hideTimer = collapseTimer = null;
-    }
-
-    function afterClose() {
-        if (expandedByUs) {
-            const button = toggleButton(nativeNav);
-            if (button && nativeNav && nativeNav.isConnected && !isCollapsed(nativeNav)) button.click();
-            expandedByUs = false;
-        }
-        if (edgeFallback && !theaterMode && !open) {
-            edgeFallback = false;
-            root.classList.remove(ROOT_CLASS);
-            restoreNav();
-        }
-    }
-
-    function closeNav(immediate = false) {
-        clearTimeout(showTimer);
         showTimer = null;
-        clearTimeout(hideTimer);
         hideTimer = null;
-
-        if (!nativeNav) {
-            open = false;
-            return;
-        }
-
-        nativeNav.classList.remove(OPEN_CLASS);
-        open = false;
-        clearTimeout(collapseTimer);
-        collapseTimer = setTimeout(afterClose, immediate ? 0 : CFG.animation + 35);
     }
+    function renderStatus() {
+        const candidates = allCandidates();
+        const theater = theaterDetected();
+        const best = bestCandidate();
+        const theaterText = theater ? 'да (' + theater + ')' : 'селектор не найден';
+        statusEl.textContent = statusMessage + '\n' +
+            'Театр: ' + theaterText +
+            ' | URL канала: ' + (streamRoute() ? 'да' : 'нет') +
+            ' | Плеер: ' + (hasPlayer() ? 'да' : 'нет') + '\n' +
+            'Совпадений навигации: ' + candidates.length +
+            ' | Лучший кандидат: ' + (best ? describe(best.el) : 'не найден');
+        modeButtons.forEach(btn => btn.classList.toggle('tts4-selected', Number(btn.dataset.mode) === selectedMode));
+    }
+    function setStatus(message) {
+        statusMessage = message;
+        renderStatus();
+    }
+    function selectTarget(mode) {
+        if (mode >= 1 && mode <= 5) {
+            return { el: queryOne(SELECTORS[mode]), selector: SELECTORS[mode], kind: 'css' };
+        }
+        if (mode === 6) {
+            const best = bestCandidate();
+            if (!best) return { el: null, selector: 'родитель лучшего кандидата', kind: 'parent' };
+            return { el: best.el.closest('.side-bar-contents') || best.el.parentElement, selector: 'родитель: ' + best.selector, kind: 'parent' };
+        }
+        if (mode === 7) {
+            const best = bestCandidate();
+            return { el: best ? best.el : null, selector: best ? best.selector : 'лучший кандидат', kind: 'inline' };
+        }
+        return { el: null, selector: '', kind: 'none' };
+    }
+    function runMode(mode, fromHover = false) {
+        clearTimers();
+        removeAppliedStyles();
+        selectedMode = mode;
+        openedByHover = fromHover;
 
-    function openNav() {
-        showTimer = null;
-        if (!theaterMode && !edgeFallback) return;
-
-        const current = getNavCandidate();
-        if (current && current !== nativeNav) styleNativeNav(current);
-        if (!nativeNav || !nativeNav.isConnected) return;
-
-        clearTimeout(collapseTimer);
-        collapseTimer = null;
-
-        if (isCollapsed(nativeNav)) {
-            const button = toggleButton(nativeNav);
-            if (button) {
+        if (mode === 8) {
+            const button = currentToggleButton();
+            if (!button) {
+                setStatus('РЕЖИМ 8: штатная кнопка раскрытия Twitch не найдена. Проверь 1–7 или 9.');
+                return;
+            }
+            const label = ((button.getAttribute('aria-label') || '') + ' ' + (button.getAttribute('title') || '')).toLowerCase();
+            const expanded = button.getAttribute('aria-expanded');
+            if (expanded === 'false' || /expand/.test(label)) {
                 button.click();
-                expandedByUs = true;
-            }
-        }
-
-        nativeNav.classList.add(NAV_CLASS, OPEN_CLASS);
-        root.classList.add(ROOT_CLASS);
-        open = true;
-    }
-
-    function scheduleOpen() {
-        clearTimeout(hideTimer);
-        hideTimer = null;
-        if (open || showTimer !== null) return;
-        showTimer = setTimeout(openNav, CFG.showDelay);
-    }
-
-    function scheduleClose() {
-        if (!open || hideTimer !== null) return;
-        hideTimer = setTimeout(() => {
-            hideTimer = null;
-            if (nativeNav && nativeNav.matches(':hover')) return;
-            closeNav(false);
-        }, CFG.hideDelay);
-    }
-
-    function activateTheater() {
-        theaterMode = true;
-        edgeFallback = false;
-        root.classList.add(ROOT_CLASS);
-        const candidate = getNavCandidate();
-        if (candidate) styleNativeNav(candidate);
-    }
-
-    function deactivateTheater() {
-        theaterMode = false;
-        closeNav(true);
-        if (!edgeFallback) {
-            root.classList.remove(ROOT_CLASS);
-            restoreNav();
-            expandedByUs = false;
-        }
-    }
-
-    function sync() {
-        const detected = detectTheater();
-        if (detected) {
-            if (!theaterMode) activateTheater();
-            const candidate = getNavCandidate();
-            if (candidate && candidate !== nativeNav) styleNativeNav(candidate);
-            if (nativeNav && nativeNav.isConnected && !nativeNav.classList.contains(NAV_CLASS)) {
-                nativeNav.classList.add(NAV_CLASS);
+                nativeToggleClickedByUs = true;
+                nativeToggleButton = button;
+                previewOpen = true;
+                setStatus('РЕЖИМ 8: нажал штатную кнопку раскрытия Twitch. Если настоящее меню открылось — сообщи «8».\n' + describe(button));
+            } else {
+                previewOpen = true;
+                setStatus('РЕЖИМ 8: кнопка найдена, но выглядит раскрытой. Проверь, появилось ли меню.\n' + describe(button));
             }
             return;
         }
-
-        if (!edgeFallback) {
-            if (theaterMode || nativeNav) deactivateTheater();
+        if (mode === 9) {
+            outlined = allCandidates().map(item => item.el);
+            outlined.forEach(el => el.classList.add('tts4-outline'));
+            previewOpen = false;
+            setStatus('РЕЖИМ 9: найденные элементы обведены жёлтым. Напиши «9» и опиши, где видны рамки.');
             return;
         }
 
-        const candidate = getNavCandidate();
-        if (candidate && candidate !== nativeNav) styleNativeNav(candidate);
+        const selected = selectTarget(mode);
+        if (!selected.el) {
+            setStatus('РЕЖИМ ' + mode + ': селектор не нашёл элемент: ' + selected.selector + '. Проверь другой номер.');
+            return;
+        }
+        activeTarget = selected.el;
+        if (selected.kind === 'parent') activeTarget.classList.add('tts4-force-parent');
+        else if (selected.kind === 'inline') forceInline(activeTarget);
+        else activeTarget.classList.add('tts4-force');
+
+        previewOpen = true;
+        setStatus('РЕЖИМ ' + mode + ': применён «' + selected.selector + '». Если появилась настоящая панель трансляций — сообщи номер ' + mode + '.\n' + describe(activeTarget));
     }
+    function hideKeepMode() {
+        clearTimers();
+        removeAppliedStyles();
+        setStatus('Режим ' + selectedMode + ' выбран, показ сброшен. Теперь наведи курсор на самый левый край — будет проверен этот режим.');
+    }
+    function resetAll() {
+        clearTimers();
+        removeAppliedStyles();
+        selectedMode = 1;
+        setStatus('Сброшено. Выбери режим 1–9. Панель диагностики остаётся открытой.');
+    }
+
+    modeButtons.forEach(button => {
+        button.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            runMode(Number(button.dataset.mode), false);
+        });
+    });
+    toolbar.querySelector('#tts4-show').addEventListener('click', event => {
+        event.preventDefault(); event.stopPropagation(); runMode(selectedMode, false);
+    });
+    toolbar.querySelector('#tts4-hide').addEventListener('click', event => {
+        event.preventDefault(); event.stopPropagation(); hideKeepMode();
+    });
+    toolbar.querySelector('#tts4-reset').addEventListener('click', event => {
+        event.preventDefault(); event.stopPropagation(); resetAll();
+    });
+    toolbar.querySelector('#tts4-minimize').addEventListener('click', event => {
+        event.preventDefault(); event.stopPropagation();
+        toolbar.classList.toggle('tts4-minimized');
+        toolbar.querySelector('#tts4-minimize').textContent = toolbar.classList.contains('tts4-minimized') ? '+' : '—';
+    });
 
     document.addEventListener('mousemove', event => {
-        if (event.clientX <= CFG.edge) {
-            // Check mode at the actual edge event, then fall back to the existing nav
-            // on a live channel if Twitch has changed its theater-mode class names.
-            if (!theaterMode && detectTheater()) activateTheater();
-
-            if (!theaterMode && !edgeFallback && onChannelRoute() && hasPlayer()) {
-                const candidate = getNavCandidate();
-                if (candidate) {
-                    edgeFallback = true;
-                    styleNativeNav(candidate);
-                }
+        if (toolbar.contains(event.target)) return;
+        if (event.clientX <= EDGE_WIDTH) {
+            clearTimeout(hideTimer);
+            hideTimer = null;
+            if (!previewOpen) {
+                clearTimeout(showTimer);
+                showTimer = setTimeout(() => runMode(selectedMode, true), SHOW_DELAY);
             }
-
-            if (theaterMode || edgeFallback) {
-                const candidate = getNavCandidate();
-                if (candidate && candidate !== nativeNav) styleNativeNav(candidate);
-                scheduleOpen();
-            }
-        } else if (open && nativeNav && !nativeNav.contains(event.target)) {
-            scheduleClose();
+        } else if (previewOpen && openedByHover && (activeTarget || nativeToggleClickedByUs)) {
+            if (hideTimer !== null) return;
+            hideTimer = setTimeout(() => {
+                hideTimer = null;
+                if (activeTarget && activeTarget.matches(':hover')) return;
+                removeAppliedStyles();
+                setStatus('Режим ' + selectedMode + ' готов к повторной проверке. Наведи на левый край.');
+            }, HIDE_DELAY);
         }
     }, { passive: true });
 
-    document.addEventListener('pointerdown', event => {
-        if (open && nativeNav && !nativeNav.contains(event.target)) closeNav(true);
-    }, true);
-
     document.addEventListener('keydown', event => {
-        if (event.key === 'Escape' && open) closeNav(true);
+        if (event.key === 'Escape') hideKeepMode();
     });
 
-    document.addEventListener('mouseover', event => {
-        if (!open || !nativeNav || !nativeNav.contains(event.target)) return;
-        clearTimeout(hideTimer);
-        hideTimer = null;
-        clearTimeout(collapseTimer);
-        collapseTimer = null;
-    }, true);
+    window.setInterval(() => {
+        if (!previewOpen) renderStatus();
+    }, 2500);
 
-    // Poll only; never observe Twitch's continuously changing React tree.
-    window.setInterval(sync, CFG.poll);
-    sync();
+    setStatus('Выбери режим 1–9. Каждый номер проверяет отдельный способ; режим 9 только подсвечивает кандидатов.');
 })();
