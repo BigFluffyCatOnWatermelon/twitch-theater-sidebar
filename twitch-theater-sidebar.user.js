@@ -104,8 +104,16 @@
         'html.' + ROOT_CLASS + '.tts-hide-categories #side-nav .side-nav-card__category,' +
         'html.' + ROOT_CLASS + '.tts-hide-categories #side-nav [data-a-target="side-nav-card-category"],' +
         'html.' + ROOT_CLASS + '.tts-hide-categories #side-nav .side-nav-card__game,' +
-        'html.' + ROOT_CLASS + '.tts-hide-categories #side-nav .side-nav-card__metadata > :not(.side-nav-card__viewers):not([data-a-target="side-nav-card-viewers"]):not(:has(.side-nav-card__viewers)):not(:has([data-a-target="side-nav-card-viewers"])){' +
+        'html.' + ROOT_CLASS + '.tts-hide-categories #side-nav .side-nav-card__metadata :not(.side-nav-card__viewers):not([data-a-target="side-nav-card-viewers"]):not(.side-nav-card__live-status):not(:has(.side-nav-card__viewers)):not(:has([data-a-target="side-nav-card-viewers"])):not(:has(.side-nav-card__live-status)){' +
             'display:none!important;' +
+        '}' +
+        'html.' + ROOT_CLASS + '.tts-hide-categories #side-nav .side-nav-card__metadata{' +
+            'font-size:0!important;line-height:0!important;' +
+        '}' +
+        'html.' + ROOT_CLASS + '.tts-hide-categories #side-nav .side-nav-card__metadata .side-nav-card__viewers,' +
+        'html.' + ROOT_CLASS + '.tts-hide-categories #side-nav .side-nav-card__metadata [data-a-target="side-nav-card-viewers"],' +
+        'html.' + ROOT_CLASS + '.tts-hide-categories #side-nav .side-nav-card__metadata .side-nav-card__live-status{' +
+            'font-size:12px!important;line-height:normal!important;' +
         '}' +
         'html.' + ROOT_CLASS + '.tts-no-smooth-animation .' + HOST_CLASS + '{transition:none!important;}' +
         '@media(prefers-reduced-motion:reduce){html.' + ROOT_CLASS + ' .' + HOST_CLASS + '{transition:none!important;}}';
