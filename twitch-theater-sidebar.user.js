@@ -3,8 +3,8 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      4.1.0
-// @description  Numbered diagnostics and CSS audit for Twitch's native left navigation.
+// @version      4.2.0
+// @description  Clean up legacy sidebar scripts and audit CSS affecting Twitch navigation.
 // @match        https://www.twitch.tv/*
 // @noframes
 // @updateURL    https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js
@@ -22,6 +22,60 @@
     const SHOW_DELAY = 70;
     const HIDE_DELAY = 260;
     const PANEL_WIDTH = 280;
+    const LEGACY_SEEN = new Set();
+
+    // Earlier revisions used different names and CSS class names. Tampermonkey may
+    // keep them installed as separate scripts after @name changed. Remove their
+    // styles/classes periodically so they cannot override this diagnostic version.
+    function cleanupLegacySidebarScripts() {
+        const legacyIds = [
+            'twitch-theater-sidebar-style',
+            'tts30-style',
+            'twitch-theater-sidebar-panel',
+            'twitch-theater-sidebar-trigger',
+            'tms-overlay',
+            'tms-trigger'
+        ];
+
+        for (const id of legacyIds) {
+            const node = document.getElementById(id);
+            if (node) {
+                LEGACY_SEEN.add('legacy element #' + id);
+                node.remove();
+            }
+        }
+
+        for (const node of Array.from(document.querySelectorAll('style'))) {
+            if (node.id === ID + '-style') continue;
+            const text = node.textContent || '';
+            if (
+                text.includes('#tms-overlay') ||
+                text.includes('#tms-trigger') ||
+                text.includes('#twitch-theater-sidebar-panel') ||
+                text.includes('#twitch-theater-sidebar-trigger') ||
+                text.includes('.tts-native-sidebar') ||
+                text.includes('.tts30-native-nav')
+            ) {
+                LEGACY_SEEN.add('legacy style ' + (node.id ? '#' + node.id : '(no id)'));
+                node.remove();
+            }
+        }
+
+        document.documentElement.classList.remove('tts-theater-mode-active', 'tts30-layout');
+        for (const node of document.querySelectorAll(
+            '.tts-native-sidebar, .tts-native-sidebar-open, .tts30-native-nav, .tts30-open'
+        )) {
+            LEGACY_SEEN.add('legacy class on ' + node.tagName.toLowerCase() + (node.id ? '#' + node.id : ''));
+            node.classList.remove(
+                'tts-native-sidebar',
+                'tts-native-sidebar-open',
+                'tts30-native-nav',
+                'tts30-open'
+            );
+        }
+    }
+
+    cleanupLegacySidebarScripts();
 
     document.getElementById(ID + '-toolbar')?.remove();
     document.getElementById(ID + '-style')?.remove();
@@ -407,6 +461,7 @@
         lines.push('Stream route: ' + streamRoute() + '; player found: ' + hasPlayer());
         lines.push('Candidate count: ' + candidates.length);
         lines.push('Document stylesheets: ' + document.styleSheets.length);
+        lines.push('Legacy sidebar artifacts detected/removed: ' + (LEGACY_SEEN.size ? Array.from(LEGACY_SEEN).join('; ') : 'none detected yet'));
         lines.push('');
 
         if (!primary) {
@@ -602,8 +657,9 @@
     });
 
     window.setInterval(() => {
+        cleanupLegacySidebarScripts();
         if (!previewOpen) renderStatus();
-    }, 2500);
+    }, 400);
 
     setStatus('Выбери режим 1–9 или нажми 10, чтобы проверить CSS-правила, скрывающие навигацию.');
 })();
