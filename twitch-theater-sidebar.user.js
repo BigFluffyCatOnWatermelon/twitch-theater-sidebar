@@ -1,9 +1,11 @@
 // ==UserScript==
 // @name         Twitch Theater Sidebar on Hover
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
-// @version      2.0.2
+// @version      2.0.3
 // @description  Slide Twitch's original For You/sidebar out from the left edge in theater mode.
 // @match        https://www.twitch.tv/*
+// @updateURL    https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js
+// @downloadURL  https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js
 // @run-at       document-idle
 // @grant        none
 // @license      MIT
@@ -393,7 +395,17 @@
     }
 
     // Twitch is a single-page app; handle theater toggles and native nav replacement.
-    const observer = new MutationObserver(scheduleSync);
+    const observer = new MutationObserver(mutations => {
+        // Restore our classes immediately if Twitch rewrites the native nav className.
+        if (mutations.some(mutation =>
+            mutation.type === 'attributes' &&
+            (mutation.target === sidebar || mutation.target === root)
+        )) {
+            syncState();
+            return;
+        }
+        scheduleSync();
+    });
     observer.observe(document.documentElement, {
         childList: true,
         subtree: true,
