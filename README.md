@@ -6,7 +6,19 @@ A Tampermonkey userscript that reveals Twitch's **original left navigation** (in
 
 1. Install Tampermonkey.
 2. Open the [raw userscript](https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js).
-3. Confirm the installation in Tampermonkey, then reload Twitch.
+3. Confirm installation in Tampermonkey, then reload Twitch.
+
+## Automatic updates
+
+The script includes `@updateURL` and `@downloadURL` metadata pointing to this repository's stable Raw URL. Tampermonkey can check that URL for new versions and install them without reinstalling the script manually.
+
+To make sure updates are enabled:
+1. Open the Tampermonkey Dashboard.
+2. Open **Settings** and make sure userscript updates / automatic update checking are enabled.
+3. Keep this script enabled. When a higher `@version` is published to the same Raw URL, Tampermonkey can detect the new version on its next update check.
+
+The install URL stays the same:
+`https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js`
 
 ## Behavior
 
