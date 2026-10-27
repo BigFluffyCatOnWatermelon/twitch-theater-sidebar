@@ -3,7 +3,7 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      5.4.6
+// @version      5.4.7
 // @description  Theater-mode sidebar with fast cached thumbnail previews and configurable controls.
 // @match        https://www.twitch.tv/*
 // @noframes
@@ -209,6 +209,18 @@
         '#tts-settings-panel .tts-settings-footnote{' +
             'color:#adadb8;font-size:11px;margin-top:14px;' +
         '}' ;
+
+    // Twitch creates its native channel-preview tooltip in a separate dialog layer outside #side-nav.
+    // Hide that portal only while our theater-mode class is active; our own preview has a different ID.
+    style.textContent +=
+        'html.' + ROOT_CLASS + ' .tw-dialog-layer:has(.online-side-nav-channel-tooltip__body),' +
+        'html.' + ROOT_CLASS + ' .tw-dialog-layer:has(.side-nav-guest-star-tooltip__body){' +
+            'display:none!important;visibility:hidden!important;pointer-events:none!important;' +
+        '}' +
+        'html.' + ROOT_CLASS + ' .tw-dialog-layer .online-side-nav-channel-tooltip__body,' +
+        'html.' + ROOT_CLASS + ' .tw-dialog-layer .side-nav-guest-star-tooltip__body{' +
+            'display:none!important;visibility:hidden!important;pointer-events:none!important;' +
+        '}';
 
     const NAV_SELECTOR = '#side-nav';
     const THEATER_SELECTORS = [
