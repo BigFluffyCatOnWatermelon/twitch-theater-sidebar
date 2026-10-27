@@ -3,7 +3,7 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      5.4.5
+// @version      5.4.6
 // @description  Theater-mode sidebar with fast cached thumbnail previews and configurable controls.
 // @match        https://www.twitch.tv/*
 // @noframes
@@ -417,8 +417,8 @@
         const extractedName = extractChannelTitle(card, link, login);
         const channelName = extractedName && extractedName.toLowerCase() !== login.toLowerCase()
             ? extractedName : (cached.channelName || login);
-        const viewers = extractViewerCount(card) || cached.viewers || '';
-        if (channelName || viewers) channelInfoCache.set(login, { ...cached, channelName, viewers });
+        const viewers = cached.apiVerified ? (cached.viewers || '') : '';
+        channelInfoCache.set(login, { ...cached, channelName, viewers });
         return { avatar, link, card, login, channelName, streamTitle: cached.streamTitle || '', viewers };
     }
 
@@ -437,7 +437,7 @@
                 ...old,
                 channelName: extractedName && extractedName.toLowerCase() !== login.toLowerCase()
                     ? extractedName : (old.channelName || login),
-                viewers: offline ? '' : (extractedViewers || old.viewers || '')
+                viewers: offline ? '' : (old.apiVerified ? old.viewers : (extractedViewers || old.viewers || ''))
             });
         }
     }
@@ -485,7 +485,7 @@
                     category: stream.game && stream.game.name ? stream.game.name : ''
                 };
                 streamInfoCache.set(login, { value, expiresAt: Date.now() + STREAM_INFO_CACHE_MS });
-                channelInfoCache.set(login, { ...(channelInfoCache.get(login) || {}), ...value });
+                channelInfoCache.set(login, { ...(channelInfoCache.get(login) || {}), ...value, apiVerified: true });
                 return value;
             } catch (error) {
                 // Keep preview usable when Twitch's internal endpoint is unavailable.
@@ -568,7 +568,7 @@
         name.title = previewData.channelName || previewData.login;
         streamTitle.textContent = previewData.streamTitle || '';
         streamTitle.style.display = previewData.streamTitle ? 'block' : 'none';
-        viewers.textContent = previewData.viewers || '—';
+        viewers.textContent = previewData.viewers || 'Зрителей: —';
         viewers.style.display = '';
         positionPreview();
     }
@@ -578,6 +578,12 @@
         if (previewAnchor === hit.avatar && previewCard && previewCard.isConnected) {
             previewData = hit;
             renderPreviewDetails();
+            const sameLogin = hit.login;
+            fetchLiveStreamInfo(sameLogin).then(info => {
+                if (!info || !previewCard || !previewCard.isConnected || !previewData || previewData.login !== sameLogin) return;
+                previewData = { ...previewData, ...info };
+                renderPreviewDetails();
+            });
             return;
         }
 
