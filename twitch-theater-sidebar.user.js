@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitch Theater Sidebar on Hover
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
-// @version      2.0.0
+// @version      2.0.1
 // @description  Slide Twitch's original For You/sidebar out from the left edge in theater mode.
 // @match        https://www.twitch.tv/*
 // @run-at       document-idle
@@ -330,7 +330,13 @@
             root.classList.add(ROOT_CLASS);
         }
 
-        if (foundSidebar !== sidebar) activateTheaterMode(foundSidebar);
+        if (foundSidebar !== sidebar) {
+            activateTheaterMode(foundSidebar);
+        } else if (sidebar) {
+            // React can overwrite classes on the existing element during rerenders.
+            sidebar.classList.add(SIDEBAR_CLASS);
+            if (isOpen) sidebar.classList.add(OPEN_CLASS);
+        }
     }
 
     document.addEventListener('mousemove', event => {
@@ -380,7 +386,12 @@
 
     // Twitch is a single-page app; handle theater toggles and native nav replacement.
     const observer = new MutationObserver(scheduleSync);
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'aria-label', 'aria-pressed']
+    });
 
     window.setInterval(syncState, CONFIG.pollMs);
     syncState();
