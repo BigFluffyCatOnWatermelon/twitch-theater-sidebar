@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitch Theater Sidebar on Hover
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
-// @version      2.0.1
+// @version      2.0.2
 // @description  Slide Twitch's original For You/sidebar out from the left edge in theater mode.
 // @match        https://www.twitch.tv/*
 // @run-at       document-idle
@@ -245,9 +245,10 @@
     }
 
     function scheduleShow() {
-        if (!theaterActive || isOpen) return;
+        if (!theaterActive) return;
         clearTimeout(hideTimer);
         hideTimer = null;
+        if (isOpen) return;
         clearTimeout(collapseTimer);
         collapseTimer = null;
         clearTimeout(showTimer);
@@ -345,7 +346,14 @@
 
         if (event.clientX <= CONFIG.edgeWidth) {
             scheduleShow();
-        } else if (isOpen && sidebar && !sidebar.contains(event.target)) {
+        } else if (
+            isOpen &&
+            sidebar &&
+            !sidebar.contains(event.target) &&
+            hideTimer === null
+        ) {
+            // Start the hide delay once when leaving, rather than resetting it
+            // on every mousemove while the cursor crosses the player.
             scheduleHide();
         }
     }, { passive: true });
