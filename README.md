@@ -1,29 +1,18 @@
 # Twitch Theater Sidebar — diagnostic build
 
-This version adds a numbered diagnostic toolbar so we can test how Twitch's real left navigation is found and revealed. It does not clone or create a replacement list of streams; the toolbar is only a temporary debugging control.
+This Tampermonkey userscript provides numbered reveal tests and a CSS audit for Twitch's left navigation. It does not clone channel listings.
 
 ## Install / update
 
-Open the [Raw userscript](https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js) in Tampermonkey. The script uses that stable address for automatic update checks.
+Open the [Raw userscript](https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js) in Tampermonkey. Automatic update metadata points to the stable Raw URL.
 
-## How to test
+## Test / diagnose
 
-1. Open a Twitch stream and switch to theater mode.
-2. In the top-right corner, use the diagnostic toolbar.
-3. Click modes 1–8 one at a time. Each mode tries a different selector/visibility method. Mode 9 outlines matching elements in yellow.
-4. If a mode reveals the original Twitch sidebar, tell me its number.
-5. For hover testing, click **"Скрыть / тест края"**, then move the pointer to the far-left edge.
-6. If no mode works, copy the diagnostic status text from the toolbar. It includes theater detection, candidate count, link count, element size, and CSS visibility.
+1. Open a Twitch stream and turn on theater mode.
+2. If modes 1–9 do not reveal the panel, press **10. Кто скрывает?**
+3. The report shows the candidate element, computed styles on it and its ancestors, and matching CSS rules with source stylesheet labels. A `chrome-extension://` or `moz-extension://` URL can identify an extension injecting a rule.
+4. The report is selected in the text field; press **Ctrl+C** and send the full text.
 
-Modes:
-1. `#side-nav`
-2. aria-label navigation
-3. `.side-nav`
-4. `data-test-selector`
-5. `data-a-target`
-6. parent wrapper of the strongest navigation candidate
-7. inline forced styles
-8. Twitch's native expand button
-9. yellow diagnostic outlines
+Mode 10 inspects accessible CSS rules and inline styles. Cross-origin sheets can block CSS rule inspection, which is reported in the diagnostics.
 
 No page-wide MutationObserver is used.
