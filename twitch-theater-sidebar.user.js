@@ -3,8 +3,8 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      5.1.0
-// @description  Smoothly reveal Twitch's native sidebar, respecting its collapsed width in theater mode.
+// @version      5.2.0
+// @description  Auto-collapse Twitch's native sidebar in theater mode and reveal its icon rail on hover.
 // @match        https://www.twitch.tv/*
 // @noframes
 // @updateURL    https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js
@@ -77,23 +77,10 @@
             'transition:transform ' + CONFIG.animationMs + 'ms cubic-bezier(.22,1,.36,1),width 140ms ease,min-width 140ms ease,box-shadow ' + CONFIG.animationMs + 'ms ease!important;' +
             'pointer-events:none!important;will-change:transform,width;' +
         '}' +
-        'html.' + ROOT_CLASS + ' .' + HOST_CLASS + ' > .side-nav {' +
-            'width:100%!important;min-width:0!important;max-width:100%!important;' +
-            'box-sizing:border-box!important;flex:0 0 auto!important;' +
-            'transition:width 140ms ease,min-width 140ms ease!important;' +
-        '}' +
         'html.' + ROOT_CLASS + ' .' + HOST_CLASS + '.' + OPEN_CLASS + ' {' +
             'transform:translate3d(0,0,0)!important;pointer-events:auto!important;' +
             'box-shadow:5px 0 24px rgba(0,0,0,.38)!important;' +
         '}' +
-        'html.' + ROOT_CLASS + ' .' + HOST_CLASS + ':not(.' + OPEN_CLASS + ')::after {' +
-            'content:"";position:absolute;top:50%;left:calc(100% + 14px);' +
-            'width:3px;height:56px;border-radius:0 3px 3px 0;' +
-            'background:linear-gradient(180deg,rgba(145,71,255,.55),rgba(145,71,255,.95),rgba(145,71,255,.55));' +
-            'box-shadow:0 0 12px rgba(145,71,255,.18);transform:translateY(-50%);' +
-            'opacity:.9;pointer-events:none;transition:opacity 160ms ease;' +
-        '}' +
-        'html.' + ROOT_CLASS + ' .' + HOST_CLASS + '.' + OPEN_CLASS + '::after{opacity:0;}' +
         '@media(prefers-reduced-motion:reduce){html.' + ROOT_CLASS + ' .' + HOST_CLASS + '{transition:none!important;}}';
     (document.head || document.documentElement).appendChild(style);
 
@@ -113,6 +100,7 @@
     let expandedWidth = CONFIG.panelWidthFallback;
     let collapsedWidth = 56;
     let isTheater = false;
+    let sidebarWasExpandedBeforeTheater = null;
     let isOpen = false;
     let showTimer = null;
     let hideTimer = null;
@@ -159,6 +147,54 @@
             nav.classList.contains('side-nav--collapsed');
     }
 
+    function findSidebarToggle(nav) {
+        const sideNav = nav && (nav.closest('.side-nav') || nav);
+        return (sideNav && sideNav.querySelector('[data-a-target="side-nav-arrow"]')) ||
+            document.querySelector('[data-a-target="side-nav-arrow"]');
+    }
+
+    function ensureNativeSidebarCollapsed(nav) {
+        if (!nav) return;
+
+        // Capture the user's original preference once, then keep the native Twitch
+        // sidebar collapsed for the whole theater-mode session.
+        if (sidebarWasExpandedBeforeTheater === null) {
+            sidebarWasExpandedBeforeTheater = !isSidebarCollapsed(nav);
+        }
+        if (isSidebarCollapsed(nav)) return;
+
+        const toggle = findSidebarToggle(nav);
+        if (!toggle || toggle.disabled) return;
+
+        toggle.click();
+
+        // Twitch updates the collapsed class during its React render. Re-measure
+        // after that render so the wrapper shrinks with the actual native icon rail.
+        [60, 160, 320].forEach(delay => {
+            window.setTimeout(() => {
+                if (isTheater) {
+                    syncState();
+                    syncHostWidth();
+                }
+            }, delay);
+        });
+    }
+
+    function restoreNativeSidebarState() {
+        const shouldBeExpanded = sidebarWasExpandedBeforeTheater;
+        sidebarWasExpandedBeforeTheater = null;
+        if (shouldBeExpanded === null) return;
+
+        const nav = findNav();
+        if (!nav) return;
+
+        const currentlyExpanded = !isSidebarCollapsed(nav);
+        if (currentlyExpanded === shouldBeExpanded) return;
+
+        const toggle = findSidebarToggle(nav);
+        if (toggle && !toggle.disabled) toggle.click();
+    }
+
     function readSidebarBackground(nav) {
         const sideNav = nav && (nav.closest('.side-nav') || nav);
         if (!sideNav) return '#26262c';
@@ -196,6 +232,7 @@
         document.documentElement.classList.remove(ROOT_CLASS);
         releaseHost();
         isTheater = false;
+        restoreNativeSidebarState();
     }
 
     function activateHost(nav, host) {
@@ -252,6 +289,8 @@
             if (activeHost) releaseHost();
             return;
         }
+
+        ensureNativeSidebarCollapsed(nav);
 
         const host = findHost(nav);
         if (!host) return;
