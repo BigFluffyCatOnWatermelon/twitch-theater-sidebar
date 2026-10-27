@@ -3,8 +3,8 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      2.0.8
-// @description  Slide Twitch's original For You/sidebar out from the left edge in theater mode.
+// @version      3.0.0
+// @description  Reveal Twitch's original "For You" sidebar at the left edge in theater mode.
 // @match        https://www.twitch.tv/*
 // @noframes
 // @updateURL    https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js
@@ -17,69 +17,78 @@
 (() => {
     'use strict';
 
-    const CONFIG = Object.freeze({
-        edgeWidth: 24,
-        sidebarWidth: 260,
-        showDelay: 75,
+    const CFG = {
+        edge: 30,
+        width: 270,
+        showDelay: 70,
         hideDelay: 260,
-        animationMs: 220,
-        pollMs: 800,
-    });
+        animation: 220,
+        poll: 1200
+    };
 
-    const ROOT_CLASS = 'tts-theater-mode-active';
-    const SIDEBAR_CLASS = 'tts-native-sidebar';
-    const OPEN_CLASS = 'tts-native-sidebar-open';
-    const STYLE_ID = 'twitch-theater-sidebar-style';
+    const ROOT_CLASS = 'tts30-layout';
+    const NAV_CLASS = 'tts30-native-nav';
+    const OPEN_CLASS = 'tts30-open';
+    const STYLE_ID = 'tts30-style';
 
-    // Remove leftovers from v1, which created a separate cloned overlay.
+    // Clean up obsolete UI made by older versions. The native Twitch navigation is untouched here.
     document.getElementById('twitch-theater-sidebar-panel')?.remove();
     document.getElementById('twitch-theater-sidebar-trigger')?.remove();
+    document.getElementById('tms-overlay')?.remove();
+    document.getElementById('tms-trigger')?.remove();
     document.getElementById(STYLE_ID)?.remove();
 
-    const style = document.createElement('style');
-    style.id = STYLE_ID;
-    style.textContent =
-        'html.' + ROOT_CLASS + ' .' + SIDEBAR_CLASS + ' {' +
-        ' position: fixed !important;' +
-        ' inset-block-start: var(--tts-native-sidebar-top, 0px) !important;' +
-        ' inset-inline-start: 0 !important;' +
-        ' inset-block-end: 0 !important;' +
-        ' width: min(' + CONFIG.sidebarWidth + 'px, 88vw) !important;' +
-        ' min-width: min(' + CONFIG.sidebarWidth + 'px, 88vw) !important;' +
-        ' max-width: 88vw !important;' +
-        ' height: auto !important; min-height: 0 !important; max-height: none !important;' +
-        ' margin: 0 !important; box-sizing: border-box !important;' +
-        ' display: flex !important; flex-direction: column !important; align-items: stretch !important;' +
-        ' overflow-x: hidden !important; overflow-y: auto !important;' +
-        ' visibility: visible !important; opacity: 1 !important;' +
-        ' z-index: 2147483000 !important;' +
-        ' background: var(--color-background-base, #0e0e10) !important;' +
-        ' border-right: 1px solid rgba(255, 255, 255, 0.10) !important;' +
-        ' box-shadow: none !important;' +
-        ' transform: translateX(calc(-100% - 10px)) !important;' +
-        ' transition: transform ' + CONFIG.animationMs + 'ms cubic-bezier(0.22, 1, 0.36, 1) !important;' +
-        ' pointer-events: none !important; will-change: transform;' +
+    const css = document.createElement('style');
+    css.id = STYLE_ID;
+    css.textContent =
+        'html.' + ROOT_CLASS + ' .' + NAV_CLASS + ' {' +
+        ' position:fixed!important;' +
+        ' top:var(--tts30-top,0px)!important;' +
+        ' left:0!important; right:auto!important; bottom:0!important;' +
+        ' width:min(' + CFG.width + 'px,88vw)!important;' +
+        ' min-width:min(' + CFG.width + 'px,88vw)!important;' +
+        ' max-width:88vw!important; height:auto!important;' +
+        ' min-height:0!important; max-height:none!important; margin:0!important;' +
+        ' box-sizing:border-box!important; display:flex!important;' +
+        ' flex-direction:column!important; align-items:stretch!important;' +
+        ' overflow-x:hidden!important; overflow-y:auto!important;' +
+        ' visibility:visible!important; opacity:1!important;' +
+        ' z-index:2147483000!important;' +
+        ' background:var(--color-background-base,#0e0e10)!important;' +
+        ' border-right:1px solid rgba(255,255,255,.12)!important;' +
+        ' transform:translate3d(calc(-100% - 12px),0,0)!important;' +
+        ' transition:transform ' + CFG.animation + 'ms cubic-bezier(.22,1,.36,1)!important;' +
+        ' pointer-events:none!important; will-change:transform;' +
         '}' +
-        'html.' + ROOT_CLASS + ' .' + SIDEBAR_CLASS + '.' + OPEN_CLASS + ' {' +
-        ' transform: translateX(0) !important; pointer-events: auto !important;' +
-        ' box-shadow: 5px 0 24px rgba(0, 0, 0, 0.38) !important;' +
+        'html.' + ROOT_CLASS + ' .' + NAV_CLASS + '.' + OPEN_CLASS + ' {' +
+        ' transform:translate3d(0,0,0)!important; pointer-events:auto!important;' +
+        ' box-shadow:5px 0 24px rgba(0,0,0,.4)!important;' +
         '}' +
-        '@media (prefers-reduced-motion: reduce) {' +
-        ' html.' + ROOT_CLASS + ' .' + SIDEBAR_CLASS + ' { transition: none !important; }' +
-        '}';
-    (document.head || document.documentElement).appendChild(style);
+        'html.' + ROOT_CLASS + ' .' + NAV_CLASS + ' .side-nav-section,' +
+        'html.' + ROOT_CLASS + ' .' + NAV_CLASS + ' [data-a-target="side-nav-section"] {' +
+        ' width:100%!important; max-width:100%!important;' +
+        '}' +
+        'html.' + ROOT_CLASS + ' .' + NAV_CLASS + ' .side-nav-card__title,' +
+        'html.' + ROOT_CLASS + ' .' + NAV_CLASS + ' .side-nav-card__metadata,' +
+        'html.' + ROOT_CLASS + ' .' + NAV_CLASS + ' [data-a-target="side-nav-card-metadata"] {' +
+        ' min-width:0;' +
+        '}' +
+        '@media(prefers-reduced-motion:reduce){html.' + ROOT_CLASS + ' .' + NAV_CLASS + '{transition:none!important;}}';
+    (document.head || document.documentElement).appendChild(css);
 
     const root = document.documentElement;
 
-    // Prefer known Twitch navigation roots. Do NOT choose data-test-selector first:
-    // on some layouts it is attached to an inner wrapper, not the full "For You" nav.
-    const SIDEBAR_SELECTORS = [
+    // Prefer the native navigation root; include alternate IDs/attributes used in Twitch layouts.
+    const NAV_SELECTORS = [
         '#side-nav',
+        '#sideNav',
         '[aria-label="Left Navigation"]',
+        '[aria-label*="Left Navigation" i]',
+        '[data-test-selector="side-nav"]',
         '.side-bar-contents nav',
-        '.side-nav',
+        'nav[data-a-target="side-nav-bar"]',
         '[data-a-target="side-nav-bar"]',
-        '[data-test-selector="side-nav"]'
+        '.side-nav'
     ];
 
     const THEATER_SELECTORS = [
@@ -95,54 +104,125 @@
         'button[aria-label*="Exit Theatre Mode" i]',
         'button[aria-label*="Exit Theater Mode" i]',
         'button[title*="Exit Theatre Mode" i]',
-        'button[title*="Exit Theater Mode" i]',
-        '[data-a-target="player-theatre-mode-button"][aria-pressed="true"]'
+        'button[title*="Exit Theater Mode" i]'
     ];
 
-    let theaterActive = false;
-    let sidebar = null;
-    let isOpen = false;
-    let expandedByScript = false;
+    let nativeNav = null;
+    let theaterMode = false;
+    let edgeFallback = false;
+    let open = false;
+    let expandedByUs = false;
+    let savedTop = null;
     let showTimer = null;
     let hideTimer = null;
     let collapseTimer = null;
-    let lastPointerX = Number.POSITIVE_INFINITY;
-    let savedTopProperty = null;
 
-    function findSidebar() {
-        for (const selector of SIDEBAR_SELECTORS) {
-            const found = document.querySelector(selector);
-            if (found && found.isConnected) return found;
+    function getNavCandidate() {
+        for (const selector of NAV_SELECTORS) {
+            let el = null;
+            try { el = document.querySelector(selector); } catch (_) {}
+            if (!el || !el.isConnected) continue;
+            if (el.querySelector('a[href], [data-a-target*="side-nav-card"]')) return el;
         }
         return null;
     }
 
-    function isTheaterMode() {
-        if (THEATER_SELECTORS.some(selector => document.querySelector(selector) !== null)) {
+    function onChannelRoute() {
+        const path = location.pathname.split('/').filter(Boolean);
+        if (path.length !== 1) return false;
+        const reserved = new Set([
+            'directory', 'downloads', 'inventory', 'settings', 'wallet',
+            'subscriptions', 'turbo', 'videos', 'search', 'jobs', 'p',
+            'moderator', 'popout', 'embed', 'login', 'signup'
+        ]);
+        return !reserved.has(path[0].toLowerCase());
+    }
+
+    function hasPlayer() {
+        return !!document.querySelector(
+            'video, .video-player, [data-a-target="video-player"], ' +
+            '[data-a-target="player-overlay-click-handler"], #channel-player'
+        );
+    }
+
+    function detectTheater() {
+        for (const selector of THEATER_SELECTORS) {
+            try {
+                if (document.querySelector(selector)) return true;
+            } catch (_) {}
+        }
+
+        // Twitch sometimes renames the theater root. This read-only scan runs only on a timer.
+        for (const el of document.querySelectorAll('[class*="theatre"],[class*="theater"]')) {
+            const cls = typeof el.className === 'string'
+                ? el.className
+                : (el.className && el.className.baseVal) || '';
+            if (/(theatre|theater)/i.test(cls) && !/tts30/i.test(cls)) return true;
+        }
+
+        // Fallback for a wide player on a channel route when Twitch changes class names.
+        if (!onChannelRoute()) return false;
+        const player = document.querySelector(
+            '.video-player, [data-a-target="video-player"], ' +
+            '[data-a-target="player-overlay-click-handler"], #channel-player'
+        );
+        if (!player) return false;
+        const rect = player.getBoundingClientRect();
+        return rect.width >= window.innerWidth * 0.68 &&
+               rect.height >= window.innerHeight * 0.40;
+    }
+
+    function calculateTop(nav) {
+        const rect = nav.getBoundingClientRect();
+        if (rect.top > 1 && rect.top < window.innerHeight * 0.5) return Math.round(rect.top);
+
+        const top = document.querySelector(
+            '#top-nav, [data-a-target="top-nav-container"], .top-nav, .top-bar'
+        );
+        if (top) {
+            const r = top.getBoundingClientRect();
+            if (r.height > 0 && r.bottom > 0 && r.bottom < 180) return Math.round(r.bottom);
+        }
+        return 0;
+    }
+
+    function restoreTop(nav) {
+        if (!nav || !savedTop) return;
+        if (savedTop.value) {
+            nav.style.setProperty('--tts30-top', savedTop.value, savedTop.priority);
+        } else {
+            nav.style.removeProperty('--tts30-top');
+        }
+        savedTop = null;
+    }
+
+    function restoreNav() {
+        if (!nativeNav) return;
+        nativeNav.classList.remove(OPEN_CLASS, NAV_CLASS);
+        restoreTop(nativeNav);
+        nativeNav = null;
+    }
+
+    function styleNativeNav(nav) {
+        if (!nav) return false;
+        if (nativeNav === nav && nav.classList.contains(NAV_CLASS)) {
+            root.classList.add(ROOT_CLASS);
             return true;
         }
 
-        // Fallback for Twitch class-name changes. Only inspect elements whose class
-        // already contains theatre/theater; this does not observe or mutate the DOM.
-        const modeElements = document.querySelectorAll('[class*="theatre"], [class*="theater"]');
-        for (const element of modeElements) {
-            const className = typeof element.className === 'string'
-                ? element.className
-                : (element.className && element.className.baseVal) || '';
-            if (/(theatre|theater)/i.test(className)) return true;
-        }
-
-        // Final fallback: theater mode normally makes the player occupy most of the stage.
-        if (!/^\/(?!directory|downloads|inventory|settings|wallet|subscriptions|turbo|videos|search|jobs)([^/]+)\/?$/.test(location.pathname)) {
-            return false;
-        }
-        const player = document.querySelector('.video-player, [data-a-target="player-overlay-click-handler"]');
-        if (!player) return false;
-        const rect = player.getBoundingClientRect();
-        return rect.width >= window.innerWidth * 0.68 && rect.height >= window.innerHeight * 0.40;
+        restoreNav();
+        nativeNav = nav;
+        savedTop = {
+            value: nav.style.getPropertyValue('--tts30-top'),
+            priority: nav.style.getPropertyPriority('--tts30-top')
+        };
+        nav.style.setProperty('--tts30-top', calculateTop(nav) + 'px');
+        root.classList.add(ROOT_CLASS);
+        nav.classList.add(NAV_CLASS);
+        return true;
     }
 
-    function getToggleButton(nav) {
+    function toggleButton(nav) {
         if (!nav) return null;
         return nav.querySelector(
             '[data-a-target="side-nav-arrow"],' +
@@ -156,275 +236,167 @@
     function isCollapsed(nav) {
         if (!nav) return false;
         if (nav.classList.contains('side-nav--collapsed')) return true;
-        if (nav.classList.contains('side-nav--expanded')) return false;
-
-        const toggle = getToggleButton(nav);
-        if (toggle && toggle.getAttribute('aria-expanded') === 'false') return true;
-        if (toggle && toggle.getAttribute('aria-expanded') === 'true') return false;
-        return false;
-    }
-
-    function getNativeTop(nav) {
-        const rect = nav.getBoundingClientRect();
-        if (Number.isFinite(rect.top) && rect.top > 1 && rect.top < window.innerHeight / 2) {
-            return Math.round(rect.top);
-        }
-
-        // If the hidden sidebar reports top: 0, align it under Twitch's existing top bar.
-        const topBar = document.querySelector(
-            '[data-a-target="top-nav-container"], .top-nav, .top-bar'
-        );
-        if (topBar) {
-            const topBarRect = topBar.getBoundingClientRect();
-            if (topBarRect.height > 0 && topBarRect.bottom > 0 && topBarRect.bottom < 180) {
-                return Math.round(topBarRect.bottom);
-            }
-        }
-
-        return 0;
-    }
-
-    function rememberTopProperty(nav) {
-        savedTopProperty = {
-            value: nav.style.getPropertyValue('--tts-native-sidebar-top'),
-            priority: nav.style.getPropertyPriority('--tts-native-sidebar-top')
-        };
-        nav.style.setProperty('--tts-native-sidebar-top', getNativeTop(nav) + 'px');
-    }
-
-    function restoreTopProperty(nav) {
-        if (!nav || !savedTopProperty) return;
-        if (savedTopProperty.value) {
-            nav.style.setProperty(
-                '--tts-native-sidebar-top',
-                savedTopProperty.value,
-                savedTopProperty.priority
-            );
-        } else {
-            nav.style.removeProperty('--tts-native-sidebar-top');
-        }
-        savedTopProperty = null;
-    }
-
-    function clickNativeToggle(nav) {
-        const toggle = getToggleButton(nav);
-        if (!toggle) return false;
-        toggle.click();
-        return true;
+        const button = toggleButton(nav);
+        return !!button && button.getAttribute('aria-expanded') === 'false';
     }
 
     function clearTimers() {
         clearTimeout(showTimer);
         clearTimeout(hideTimer);
         clearTimeout(collapseTimer);
-        showTimer = null;
-        hideTimer = null;
-        collapseTimer = null;
+        showTimer = hideTimer = collapseTimer = null;
     }
 
-    function collapseIfExpandedByScript() {
-        collapseTimer = null;
-        if (!expandedByScript) return;
-
-        const nav = sidebar;
-        if (nav && nav.isConnected && !isCollapsed(nav)) {
-            clickNativeToggle(nav);
+    function afterClose() {
+        if (expandedByUs) {
+            const button = toggleButton(nativeNav);
+            if (button && nativeNav && nativeNav.isConnected && !isCollapsed(nativeNav)) button.click();
+            expandedByUs = false;
         }
-        expandedByScript = false;
+        if (edgeFallback && !theaterMode && !open) {
+            edgeFallback = false;
+            root.classList.remove(ROOT_CLASS);
+            restoreNav();
+        }
     }
 
-    function closeSidebar() {
+    function closeNav(immediate = false) {
         clearTimeout(showTimer);
         showTimer = null;
         clearTimeout(hideTimer);
         hideTimer = null;
 
-        if (sidebar) sidebar.classList.remove(OPEN_CLASS);
-        isOpen = false;
-
-        clearTimeout(collapseTimer);
-        collapseTimer = null;
-
-        if (expandedByScript) {
-            collapseTimer = setTimeout(
-                collapseIfExpandedByScript,
-                CONFIG.animationMs + 35
-            );
-        }
-    }
-
-    function openSidebar() {
-        showTimer = null;
-        if (!theaterActive) return;
-
-        clearTimeout(hideTimer);
-        hideTimer = null;
-        clearTimeout(collapseTimer);
-        collapseTimer = null;
-
-        if (!sidebar || !sidebar.isConnected) {
-            syncState();
-            if (!sidebar) return;
-        }
-
-        // Expand Twitch's own navigation so its real labels/metadata are rendered.
-        if (isCollapsed(sidebar)) {
-            if (clickNativeToggle(sidebar)) expandedByScript = true;
-        }
-
-        sidebar.classList.add(OPEN_CLASS);
-        isOpen = true;
-    }
-
-    function scheduleShow() {
-        if (!theaterActive) return;
-        clearTimeout(hideTimer);
-        hideTimer = null;
-        if (isOpen || showTimer !== null) return;
-        clearTimeout(collapseTimer);
-        collapseTimer = null;
-        showTimer = setTimeout(openSidebar, CONFIG.showDelay);
-    }
-
-    function scheduleHide() {
-        if (!isOpen) return;
-        clearTimeout(hideTimer);
-        hideTimer = setTimeout(() => {
-            hideTimer = null;
-            if (sidebar && sidebar.matches(':hover')) return;
-            closeSidebar();
-        }, CONFIG.hideDelay);
-    }
-
-    function restoreSidebar(nav, shouldRestoreExpandedState) {
-        if (!nav) return;
-
-        nav.classList.remove(OPEN_CLASS);
-
-        if (
-            shouldRestoreExpandedState &&
-            expandedByScript &&
-            nav.isConnected &&
-            !isCollapsed(nav)
-        ) {
-            clickNativeToggle(nav);
-        }
-
-        nav.classList.remove(SIDEBAR_CLASS);
-        restoreTopProperty(nav);
-    }
-
-    function deactivateTheaterMode() {
-        if (!theaterActive && !sidebar) return;
-
-        clearTimers();
-        if (sidebar) restoreSidebar(sidebar, true);
-        root.classList.remove(ROOT_CLASS);
-
-        theaterActive = false;
-        sidebar = null;
-        isOpen = false;
-        expandedByScript = false;
-        savedTopProperty = null;
-    }
-
-    function activateTheaterMode(nextSidebar) {
-        const wasOpen = isOpen;
-        const shouldReopen = wasOpen || lastPointerX <= CONFIG.edgeWidth;
-
-        if (sidebar) restoreSidebar(sidebar, sidebar.isConnected);
-
-        sidebar = nextSidebar;
-        isOpen = false;
-        expandedByScript = false;
-        savedTopProperty = null;
-
-        if (!sidebar) return;
-
-        rememberTopProperty(sidebar);
-        sidebar.classList.add(SIDEBAR_CLASS);
-
-        if (shouldReopen) scheduleShow();
-    }
-
-    function syncState() {
-        const shouldBeTheater = isTheaterMode();
-
-        if (!shouldBeTheater) {
-            deactivateTheaterMode();
+        if (!nativeNav) {
+            open = false;
             return;
         }
 
-        const foundSidebar = findSidebar();
+        nativeNav.classList.remove(OPEN_CLASS);
+        open = false;
+        clearTimeout(collapseTimer);
+        collapseTimer = setTimeout(afterClose, immediate ? 0 : CFG.animation + 35);
+    }
 
-        if (!theaterActive) {
-            theaterActive = true;
-            root.classList.add(ROOT_CLASS);
+    function openNav() {
+        showTimer = null;
+        if (!theaterMode && !edgeFallback) return;
+
+        const current = getNavCandidate();
+        if (current && current !== nativeNav) styleNativeNav(current);
+        if (!nativeNav || !nativeNav.isConnected) return;
+
+        clearTimeout(collapseTimer);
+        collapseTimer = null;
+
+        if (isCollapsed(nativeNav)) {
+            const button = toggleButton(nativeNav);
+            if (button) {
+                button.click();
+                expandedByUs = true;
+            }
         }
 
-        if (foundSidebar !== sidebar) {
-            activateTheaterMode(foundSidebar);
-        } else if (sidebar) {
-            // React can overwrite classes on the existing element during rerenders.
-            sidebar.classList.add(SIDEBAR_CLASS);
-            if (isOpen) sidebar.classList.add(OPEN_CLASS);
+        nativeNav.classList.add(NAV_CLASS, OPEN_CLASS);
+        root.classList.add(ROOT_CLASS);
+        open = true;
+    }
+
+    function scheduleOpen() {
+        clearTimeout(hideTimer);
+        hideTimer = null;
+        if (open || showTimer !== null) return;
+        showTimer = setTimeout(openNav, CFG.showDelay);
+    }
+
+    function scheduleClose() {
+        if (!open || hideTimer !== null) return;
+        hideTimer = setTimeout(() => {
+            hideTimer = null;
+            if (nativeNav && nativeNav.matches(':hover')) return;
+            closeNav(false);
+        }, CFG.hideDelay);
+    }
+
+    function activateTheater() {
+        theaterMode = true;
+        edgeFallback = false;
+        root.classList.add(ROOT_CLASS);
+        const candidate = getNavCandidate();
+        if (candidate) styleNativeNav(candidate);
+    }
+
+    function deactivateTheater() {
+        theaterMode = false;
+        closeNav(true);
+        if (!edgeFallback) {
+            root.classList.remove(ROOT_CLASS);
+            restoreNav();
+            expandedByUs = false;
         }
     }
 
-    document.addEventListener('mousemove', event => {
-        lastPointerX = event.clientX;
-
-        // Re-discover the native navigation at the edge. Twitch may replace its
-        // navigation during SPA updates without any broad DOM observer running.
-        if (event.clientX <= CONFIG.edgeWidth) {
-            if ((!theaterActive && isTheaterMode()) || !sidebar || !sidebar.isConnected) {
-                syncState();
+    function sync() {
+        const detected = detectTheater();
+        if (detected) {
+            if (!theaterMode) activateTheater();
+            const candidate = getNavCandidate();
+            if (candidate && candidate !== nativeNav) styleNativeNav(candidate);
+            if (nativeNav && nativeNav.isConnected && !nativeNav.classList.contains(NAV_CLASS)) {
+                nativeNav.classList.add(NAV_CLASS);
             }
+            return;
         }
-        if (!theaterActive) return;
 
-        if (event.clientX <= CONFIG.edgeWidth) {
-            scheduleShow();
-        } else if (
-            isOpen &&
-            sidebar &&
-            !sidebar.contains(event.target) &&
-            hideTimer === null
-        ) {
-            // Start the hide delay once when leaving, rather than resetting it
-            // on every mousemove while the cursor crosses the player.
-            scheduleHide();
+        if (!edgeFallback) {
+            if (theaterMode || nativeNav) deactivateTheater();
+            return;
+        }
+
+        const candidate = getNavCandidate();
+        if (candidate && candidate !== nativeNav) styleNativeNav(candidate);
+    }
+
+    document.addEventListener('mousemove', event => {
+        if (event.clientX <= CFG.edge) {
+            // Check mode at the actual edge event, then fall back to the existing nav
+            // on a live channel if Twitch has changed its theater-mode class names.
+            if (!theaterMode && detectTheater()) activateTheater();
+
+            if (!theaterMode && !edgeFallback && onChannelRoute() && hasPlayer()) {
+                const candidate = getNavCandidate();
+                if (candidate) {
+                    edgeFallback = true;
+                    styleNativeNav(candidate);
+                }
+            }
+
+            if (theaterMode || edgeFallback) {
+                const candidate = getNavCandidate();
+                if (candidate && candidate !== nativeNav) styleNativeNav(candidate);
+                scheduleOpen();
+            }
+        } else if (open && nativeNav && !nativeNav.contains(event.target)) {
+            scheduleClose();
         }
     }, { passive: true });
 
     document.addEventListener('pointerdown', event => {
-        if (isOpen && sidebar && !sidebar.contains(event.target)) {
-            closeSidebar();
-        }
+        if (open && nativeNav && !nativeNav.contains(event.target)) closeNav(true);
     }, true);
 
     document.addEventListener('keydown', event => {
-        if (event.key === 'Escape' && isOpen) closeSidebar();
+        if (event.key === 'Escape' && open) closeNav(true);
     });
 
-    // Keep the actual Twitch navigation open while the pointer is over it.
     document.addEventListener('mouseover', event => {
-        if (!isOpen || !sidebar || !sidebar.contains(event.target)) return;
+        if (!open || !nativeNav || !nativeNav.contains(event.target)) return;
         clearTimeout(hideTimer);
         hideTimer = null;
         clearTimeout(collapseTimer);
         collapseTimer = null;
     }, true);
 
-    document.addEventListener('mouseout', event => {
-        if (!isOpen || !sidebar) return;
-        if (sidebar.contains(event.target) && !sidebar.contains(event.relatedTarget)) {
-            scheduleHide();
-        }
-    }, true);
-
-    // Avoid observing Twitch's large and frequently changing React tree.
-    // A low-frequency poll is enough to detect theater toggles and route changes.
-    window.setInterval(syncState, Math.max(CONFIG.pollMs, 1200));
-    syncState();
+    // Poll only; never observe Twitch's continuously changing React tree.
+    window.setInterval(sync, CFG.poll);
+    sync();
 })();
