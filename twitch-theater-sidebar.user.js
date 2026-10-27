@@ -3,8 +3,8 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      4.0.0
-// @description  Numbered diagnostic modes for Twitch's native left navigation.
+// @version      4.1.0
+// @description  Numbered diagnostics and CSS audit for Twitch's native left navigation.
 // @match        https://www.twitch.tv/*
 // @noframes
 // @updateURL    https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js
@@ -63,6 +63,7 @@
         '#tts4-toolbar .tts4-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}' +
         '#tts4-toolbar .tts4-title{margin:0;color:#fff;font-size:13px;font-weight:700;}' +
         '#tts4-toolbar .tts4-status{padding:8px;margin-bottom:8px;border-radius:5px;background:rgba(255,255,255,.08);white-space:pre-wrap;overflow-wrap:anywhere;}' +
+        '#tts4-toolbar .tts4-report{display:block;width:100%;height:180px;margin:6px 0;padding:8px;border:1px solid #555;border-radius:5px;background:#111;color:#e8e8eb;font:10px/1.35 Consolas,monospace;white-space:pre;resize:vertical;}' +
         '#tts4-toolbar .tts4-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-bottom:8px;}' +
         '#tts4-toolbar button{min-width:0;padding:7px 6px;border:1px solid rgba(255,255,255,.2);border-radius:5px;color:#f4f4f5;background:#303036;font:inherit;cursor:pointer;text-align:left;}' +
         '#tts4-toolbar button:hover{background:#44444c;}' +
@@ -82,6 +83,7 @@
         '</div>',
         '<div class="tts4-body">',
         '<div class="tts4-status" id="tts4-status">Запуск диагностики…</div>',
+        '<textarea class="tts4-report" id="tts4-report" readonly spellcheck="false" placeholder="Нажми 10. CSS-аудит, затем скопируй отчёт отсюда."></textarea>',
         '<div class="tts4-grid" id="tts4-modes">',
         '<button type="button" data-mode="1">1. #side-nav</button>',
         '<button type="button" data-mode="2">2. aria-label</button>',
@@ -92,18 +94,20 @@
         '<button type="button" data-mode="7">7. Жёсткий стиль</button>',
         '<button type="button" data-mode="8">8. Кнопка Twitch</button>',
         '<button type="button" data-mode="9">9. Подсветка DOM</button>',
+        '<button type="button" data-mode="10">10. Кто скрывает?</button>',
         '</div>',
         '<div class="tts4-actions">',
         '<button type="button" class="tts4-action" id="tts4-show">Показать сейчас</button>',
         '<button type="button" class="tts4-action" id="tts4-hide">Скрыть / тест края</button>',
         '<button type="button" class="tts4-action" id="tts4-reset">Сброс</button>',
         '</div>',
-        '<div class="tts4-help">Нажми режим 1–9: он сразу проверится. Чтобы проверить именно наведение, нажми «Скрыть / тест края», затем подведи мышь к самому левому краю. Новая панель трансляций не создаётся.</div>',
+        '<div class="tts4-help">Режимы 1–9 тестируют способы показа. Режим 10 ищет CSS-правила, скрывающие панель. Отчёт появится в поле выше; скопируй его целиком и пришли мне. Панель трансляций не дублируется.</div>',
         '</div>'
     ].join('');
     document.body.appendChild(toolbar);
 
     const statusEl = toolbar.querySelector('#tts4-status');
+    const reportEl = toolbar.querySelector('#tts4-report');
     const modeButtons = Array.from(toolbar.querySelectorAll('[data-mode]'));
 
     const SELECTORS = {
@@ -299,6 +303,179 @@
         statusMessage = message;
         renderStatus();
     }
+
+    function getSuspiciousDeclarations(styleDecl) {
+        const suspicious = [];
+        const get = prop => (styleDecl.getPropertyValue(prop) || '').trim().toLowerCase();
+        const display = get('display');
+        const visibility = get('visibility');
+        const opacity = get('opacity');
+        const transform = get('transform');
+        const translate = get('translate');
+        const clipPath = get('clip-path');
+        const clip = get('clip');
+        const width = get('width');
+        const height = get('height');
+        const maxWidth = get('max-width');
+        const maxHeight = get('max-height');
+        const left = get('left');
+        const contentVisibility = get('content-visibility');
+
+        if (display === 'none') suspicious.push('display:none');
+        if (visibility === 'hidden' || visibility === 'collapse') suspicious.push('visibility:' + visibility);
+        if (opacity !== '' && Number(opacity) <= 0.03) suspicious.push('opacity:' + opacity);
+        if (contentVisibility === 'hidden') suspicious.push('content-visibility:hidden');
+        if (clipPath.includes('inset(100%') || clipPath.includes('circle(0') || clipPath.includes('polygon(0')) suspicious.push('clip-path:' + clipPath);
+        if (clip && clip !== 'auto' && clip !== 'rect(auto, auto, auto, auto)') suspicious.push('clip:' + clip);
+        if (transform.includes('translatex(-') || transform.includes('translate3d(-')) suspicious.push('transform:' + transform);
+        if (translate.startsWith('-')) suspicious.push('translate:' + translate);
+        if (/^-\d{2,}px$/.test(left)) suspicious.push('left:' + left);
+        if (width === '0' || width === '0px') suspicious.push('width:' + width);
+        if (height === '0' || height === '0px') suspicious.push('height:' + height);
+        if (maxWidth === '0' || maxWidth === '0px') suspicious.push('max-width:' + maxWidth);
+        if (maxHeight === '0' || maxHeight === '0px') suspicious.push('max-height:' + maxHeight);
+        return suspicious;
+    }
+
+    function auditRulesForElement(element, limit) {
+        const results = [];
+        const seen = new Set();
+        let inaccessible = 0;
+
+        function walk(rules, source, depth) {
+            if (!rules || depth > 5 || results.length >= limit) return;
+            for (const rule of Array.from(rules)) {
+                if (results.length >= limit) return;
+                if (rule.selectorText && rule.style) {
+                    let matches = false;
+                    try { matches = element.matches(rule.selectorText); } catch (_) {}
+                    if (matches) {
+                        const effects = getSuspiciousDeclarations(rule.style);
+                        const related = /side.?nav|left.?nav|theatre|theater|channel-root/i.test(rule.selectorText);
+                        if (effects.length || related) {
+                            const key = source + '|' + rule.selectorText + '|' + rule.cssText;
+                            if (!seen.has(key)) {
+                                seen.add(key);
+                                results.push({
+                                    source: source,
+                                    selector: rule.selectorText,
+                                    effects: effects.length ? effects.join(', ') : 'селектор навигации/театрального режима',
+                                    css: String(rule.cssText || '').slice(0, 260)
+                                });
+                            }
+                        }
+                    }
+                }
+                if (rule.cssRules) {
+                    try { walk(rule.cssRules, source + ' [' + (rule.conditionText || rule.constructor.name) + ']', depth + 1); }
+                    catch (_) {}
+                }
+            }
+        }
+
+        let sheetCount = 0;
+        let extensionCount = 0;
+        for (const sheet of Array.from(document.styleSheets)) {
+            sheetCount++;
+            const owner = sheet.ownerNode;
+            const id = owner && owner.id ? '#' + owner.id : '';
+            const source = sheet.href || ('<style' + id + (owner && owner.tagName ? ' ' + owner.tagName.toLowerCase() : '') + '>');
+            if (/^(chrome|moz|safari-web)-extension:\/\//i.test(sheet.href || '')) extensionCount++;
+            try { walk(sheet.cssRules, source, 0); }
+            catch (_) { inaccessible++; }
+        }
+
+        return {
+            results: results,
+            inaccessible: inaccessible,
+            sheetCount: sheetCount,
+            extensionCount: extensionCount
+        };
+    }
+
+    function runCssAudit() {
+        clearTimers();
+        removeAppliedStyles();
+
+        const candidates = allCandidates();
+        const best = bestCandidate();
+        const primary = queryOne('#side-nav') || (best ? best.el : null);
+        const lines = [];
+        lines.push('Twitch sidebar CSS audit v4.1.0');
+        lines.push('URL: ' + location.href);
+        lines.push('Theatre selector: ' + (theaterDetected() || 'NOT FOUND'));
+        lines.push('Stream route: ' + streamRoute() + '; player found: ' + hasPlayer());
+        lines.push('Candidate count: ' + candidates.length);
+        lines.push('Document stylesheets: ' + document.styleSheets.length);
+        lines.push('');
+
+        if (!primary) {
+            lines.push('NO NAVIGATION CANDIDATE FOUND.');
+            lines.push('Either Twitch uses different markup here or the navigation is absent from the DOM.');
+            for (const selector of ALL_SELECTORS) {
+                lines.push('  ' + selector + ' => ' + queryAll(selector).length);
+            }
+        } else {
+            lines.push('PRIMARY: ' + describe(primary));
+            lines.push('id="' + (primary.id || '') + '" class="' +
+                (typeof primary.className === 'string' ? primary.className : '') +
+                '" aria-label="' + (primary.getAttribute('aria-label') || '') + '"');
+            lines.push('');
+
+            let depth = 0;
+            for (let el = primary; el && el.nodeType === 1 && depth < 10; el = el.parentElement, depth++) {
+                const cs = getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                const computed = [
+                    'display=' + cs.display, 'visibility=' + cs.visibility, 'opacity=' + cs.opacity,
+                    'position=' + cs.position, 'left=' + cs.left, 'transform=' + cs.transform,
+                    'translate=' + cs.translate, 'size=' + Math.round(rect.width) + 'x' + Math.round(rect.height),
+                    'z=' + cs.zIndex, 'pointer=' + cs.pointerEvents, 'overflow=' + cs.overflow,
+                    'hidden=' + el.hidden, 'aria-hidden=' + (el.getAttribute('aria-hidden') || '')
+                ].join(' | ');
+                lines.push('ANCESTOR ' + depth + ': ' + describe(el));
+                lines.push('  COMPUTED: ' + computed);
+                if (el.getAttribute('style')) lines.push('  INLINE: ' + el.getAttribute('style').slice(0, 500));
+
+                const audit = auditRulesForElement(el, 6);
+                for (const item of audit.results) {
+                    lines.push('  CSS SOURCE: ' + item.source);
+                    lines.push('    SELECTOR: ' + item.selector);
+                    lines.push('    EFFECT: ' + item.effects);
+                    lines.push('    RULE: ' + item.css);
+                }
+                if (!audit.results.length) lines.push('  MATCHED HIDE/RELEVANT RULES: none in accessible stylesheets');
+                if (depth === 0) {
+                    lines.push('  SHEET ACCESS: ' + audit.sheetCount + ' stylesheets; ' +
+                        audit.extensionCount + ' extension sheets visible; ' +
+                        audit.inaccessible + ' inaccessible sheets.');
+                }
+                lines.push('');
+            }
+        }
+
+        const relevantStyles = [];
+        for (const node of queryAll('style')) {
+            const text = node.textContent || '';
+            if (/side.?nav|left.?nav|theatre|theater/i.test(text) ||
+                /display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0/i.test(text)) {
+                const label = node.id ? '#' + node.id : '(no id)';
+                relevantStyles.push('style' + label + ': ' + text.slice(0, 200).replace(/\s+/g, ' '));
+            }
+        }
+        lines.push('INLINE STYLE ELEMENTS WITH RELEVANT TEXT: ' + relevantStyles.length);
+        lines.push.apply(lines, relevantStyles.slice(0, 20).map(item => '  ' + item));
+
+        reportEl.value = lines.join('\n');
+        reportEl.style.display = 'block';
+        reportEl.scrollTop = 0;
+        reportEl.focus();
+        reportEl.select();
+        previewOpen = false;
+        selectedMode = 10;
+        setStatus('CSS-аудит готов. Отчёт выделен в поле ниже — нажми Ctrl+C и пришли его целиком. Источник подозрительного правила указан в CSS SOURCE.');
+    }
+
     function selectTarget(mode) {
         if (mode >= 1 && mode <= 5) {
             return { el: queryOne(SELECTORS[mode]), selector: SELECTORS[mode], kind: 'css' };
@@ -316,6 +493,10 @@
     }
     function runMode(mode, fromHover = false) {
         clearTimers();
+        if (mode === 10) {
+            runCssAudit();
+            return;
+        }
         removeAppliedStyles();
         selectedMode = mode;
         openedByHover = fromHover;
@@ -370,7 +551,8 @@
         clearTimers();
         removeAppliedStyles();
         selectedMode = 1;
-        setStatus('Сброшено. Выбери режим 1–9. Панель диагностики остаётся открытой.');
+        reportEl.value = '';
+        setStatus('Сброшено. Выбери режим 1–10. Панель диагностики остаётся открытой.');
     }
 
     modeButtons.forEach(button => {
@@ -423,5 +605,5 @@
         if (!previewOpen) renderStatus();
     }, 2500);
 
-    setStatus('Выбери режим 1–9. Каждый номер проверяет отдельный способ; режим 9 только подсвечивает кандидатов.');
+    setStatus('Выбери режим 1–9 или нажми 10, чтобы проверить CSS-правила, скрывающие навигацию.');
 })();
