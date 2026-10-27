@@ -233,6 +233,7 @@
     let previewAnchor = null;
     let previewData = null;
     let thumbnailPreloadCache = new Map();
+    const channelInfoCache = new Map();
     let settingsPanel = null;
     let settingsBackdrop = null;
     let settingsMenuItem = null;
@@ -409,9 +410,32 @@
         if (avatar.closest('.side-nav-card__avatar--offline') ||
             link.classList.contains('side-nav-card__link--offline')) return null;
 
-        const viewers = extractViewerCount(card);
-        const title = extractChannelTitle(card, link, login);
+        const cached = channelInfoCache.get(login) || {};
+        const extractedTitle = extractChannelTitle(card, link, login);
+        const title = extractedTitle && extractedTitle.toLowerCase() !== login.toLowerCase()
+            ? extractedTitle : (cached.title || extractedTitle || login);
+        const viewers = extractViewerCount(card) || cached.viewers || '';
+        if (title || viewers) channelInfoCache.set(login, { title, viewers });
         return { avatar, link, card, login, title, viewers };
+    }
+
+    function cacheSidebarChannelInfo(nav) {
+        if (!nav) return;
+        for (const link of nav.querySelectorAll('a[href]')) {
+            const login = parseChannelLogin(link.getAttribute('href') || '');
+            if (!login) continue;
+            const card = link.closest('.side-nav-card, [data-a-target="side-nav-card"]') || link;
+            const old = channelInfoCache.get(login) || {};
+            const offline = !!card.querySelector('.side-nav-card__avatar--offline') ||
+                link.classList.contains('side-nav-card__link--offline');
+            const extractedTitle = extractChannelTitle(card, link, login);
+            const extractedViewers = offline ? '' : extractViewerCount(card);
+            channelInfoCache.set(login, {
+                title: extractedTitle && extractedTitle.toLowerCase() !== login.toLowerCase()
+                    ? extractedTitle : (old.title || extractedTitle || login),
+                viewers: offline ? '' : (extractedViewers || old.viewers || '')
+            });
+        }
     }
 
     function thumbnailSizeForPreview() {
@@ -1080,6 +1104,9 @@
     }
 
     function syncState() {
+        // Cache display names/viewer counts while Twitch still renders expanded metadata.
+        const navBeforeModeCheck = findNav();
+        if (navBeforeModeCheck) cacheSidebarChannelInfo(navBeforeModeCheck);
         const detected = theaterModeDetected();
 
         if (!detected) {
