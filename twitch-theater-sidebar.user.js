@@ -3,7 +3,7 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      2.0.7
+// @version      2.0.8
 // @description  Slide Twitch's original For You/sidebar out from the left edge in theater mode.
 // @match        https://www.twitch.tv/*
 // @noframes
@@ -122,15 +122,24 @@
             return true;
         }
 
-        // Twitch can change theatre-specific classes. On a stream page, use the
-        // actual player's geometry as a fallback when it occupies the main stage.
+        // Fallback for Twitch class-name changes. Only inspect elements whose class
+        // already contains theatre/theater; this does not observe or mutate the DOM.
+        const modeElements = document.querySelectorAll('[class*="theatre"], [class*="theater"]');
+        for (const element of modeElements) {
+            const className = typeof element.className === 'string'
+                ? element.className
+                : (element.className && element.className.baseVal) || '';
+            if (/(theatre|theater)/i.test(className)) return true;
+        }
+
+        // Final fallback: theater mode normally makes the player occupy most of the stage.
         if (!/^\/(?!directory|downloads|inventory|settings|wallet|subscriptions|turbo|videos|search|jobs)([^/]+)\/?$/.test(location.pathname)) {
             return false;
         }
         const player = document.querySelector('.video-player, [data-a-target="player-overlay-click-handler"]');
         if (!player) return false;
         const rect = player.getBoundingClientRect();
-        return rect.width >= window.innerWidth * 0.78 && rect.height >= window.innerHeight * 0.45;
+        return rect.width >= window.innerWidth * 0.68 && rect.height >= window.innerHeight * 0.40;
     }
 
     function getToggleButton(nav) {
@@ -368,8 +377,9 @@
         // Re-discover the native navigation at the edge. Twitch may replace its
         // navigation during SPA updates without any broad DOM observer running.
         if (event.clientX <= CONFIG.edgeWidth) {
-            if (!theaterActive && isTheaterMode()) syncState();
-            else if (theaterActive && (!sidebar || !sidebar.isConnected)) syncState();
+            if ((!theaterActive && isTheaterMode()) || !sidebar || !sidebar.isConnected) {
+                syncState();
+            }
         }
         if (!theaterActive) return;
 
