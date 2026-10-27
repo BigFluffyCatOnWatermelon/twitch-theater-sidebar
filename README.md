@@ -1,6 +1,6 @@
 # Twitch Theater Sidebar on Hover
 
-Tampermonkey userscript that moves Twitch's **existing left navigation** (the "For You" sidebar) into view when hovering the left edge in theater mode. It does not create a cloned sidebar.
+Tampermonkey userscript that slides Twitch's **existing native left navigation** ("For You") into view when the left edge is hovered in theater mode. It does not clone channel entries or create a replacement panel.
 
 ## Install
 
@@ -10,18 +10,14 @@ Tampermonkey userscript that moves Twitch's **existing left navigation** (the "F
 
 ## Automatic updates
 
-The script declares `@updateURL` and `@downloadURL` pointing at the stable `main` Raw URL. Enable automatic userscript update checking in Tampermonkey's settings.
+The userscript declares `@updateURL` and `@downloadURL` pointing at the stable Raw URL for the `main` branch. Enable automatic userscript update checking in Tampermonkey settings.
 
-For an immediate, cache-independent download of a specific published version, use the immutable commit URL from the latest commit page.
+## Behavior
 
-## Troubleshooting
+- Repositions Twitch's own left-navigation element; no copied channel list is created.
+- Detects theater mode with Twitch-specific selectors and a player-geometry fallback.
+- If Twitch changes its theater class names, hovering the left edge on a live channel page can temporarily reveal the native navigation.
+- Uses Twitch's expand control only if the navigation is collapsed, and restores that state after closing.
+- Avoids a page-wide MutationObserver to prevent unnecessary work during Twitch React updates.
 
-- Check the script is enabled in Tampermonkey.
-- In the Twitch theatre/player page, move the cursor all the way to the left edge.
-- If the sidebar doesn't appear, report the browser console errors and your current userscript version in the repository's Issues section.
-
-## Notes
-
-- The native Twitch navigation is repositioned; no second panel or copied channel list is created.
-- The script avoids a page-wide `MutationObserver` to reduce the risk of slowing Twitch's frequently rerendered UI.
-- It runs on `https://www.twitch.tv/*` and requests no special Tampermonkey permissions.
+If the panel is still missing, verify that the script is enabled and that Tampermonkey has installed the latest version.
