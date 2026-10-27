@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         Twitch Theater Sidebar — Diagnostic Modes
+// @name         Twitch Theater Sidebar on Hover
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      5.0.0
+// @version      5.0.1
 // @description  Smoothly reveal Twitch's native "For You" sidebar when hovering the left edge in theater mode.
 // @match        https://www.twitch.tv/*
 // @noframes
@@ -23,7 +23,7 @@
         showDelay: 65,
         hideDelay: 260,
         animationMs: 250,
-        statePollMs: 850
+        statePollMs: 500
     });
 
     const ROOT_CLASS = 'tts-hover-theater';
@@ -295,6 +295,24 @@
             !activeHost.contains(event.relatedTarget)) {
             scheduleClose();
         }
+    }, true);
+
+    // Close the temporary layout immediately when Twitch's theater-mode toggle is clicked.
+    // The poll below remains a fallback for keyboard/SPA-driven state changes.
+    document.addEventListener('click', event => {
+        const toggle = event.target && event.target.closest
+            ? event.target.closest(
+                '[data-a-target="player-theatre-mode-button"],' +
+                '[data-a-target="player-theater-mode-button"],' +
+                'button[aria-label*="Exit Theatre Mode" i],' +
+                'button[aria-label*="Exit Theater Mode" i],' +
+                'button[title*="Exit Theatre Mode" i],' +
+                'button[title*="Exit Theater Mode" i]'
+            )
+            : null;
+        if (!toggle) return;
+        window.setTimeout(syncState, 0);
+        window.setTimeout(syncState, 140);
     }, true);
 
     document.addEventListener('pointerdown', event => {
