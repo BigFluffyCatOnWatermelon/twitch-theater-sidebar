@@ -3,8 +3,8 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      5.0.1
-// @description  Smoothly reveal Twitch's native "For You" sidebar when hovering the left edge in theater mode.
+// @version      5.1.0
+// @description  Smoothly reveal Twitch's native sidebar, respecting its collapsed width in theater mode.
 // @match        https://www.twitch.tv/*
 // @noframes
 // @updateURL    https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js
@@ -72,10 +72,15 @@
             'margin:0!important;box-sizing:border-box!important;' +
             'display:flex!important;flex-direction:column!important;align-items:stretch!important;' +
             'overflow:visible!important;visibility:visible!important;opacity:1!important;' +
-            'z-index:2147483000!important;background:transparent!important;' +
+            'z-index:2147483000!important;background:var(--tts-hover-bg,#26262c)!important;' +
             'transform:translate3d(calc(-100% - 14px),0,0)!important;' +
-            'transition:transform ' + CONFIG.animationMs + 'ms cubic-bezier(.22,1,.36,1),box-shadow ' + CONFIG.animationMs + 'ms ease!important;' +
-            'pointer-events:none!important;will-change:transform;' +
+            'transition:transform ' + CONFIG.animationMs + 'ms cubic-bezier(.22,1,.36,1),width 140ms ease,min-width 140ms ease,box-shadow ' + CONFIG.animationMs + 'ms ease!important;' +
+            'pointer-events:none!important;will-change:transform,width;' +
+        '}' +
+        'html.' + ROOT_CLASS + ' .' + HOST_CLASS + ' > .side-nav {' +
+            'width:100%!important;min-width:0!important;max-width:100%!important;' +
+            'box-sizing:border-box!important;flex:0 0 auto!important;' +
+            'transition:width 140ms ease,min-width 140ms ease!important;' +
         '}' +
         'html.' + ROOT_CLASS + ' .' + HOST_CLASS + '.' + OPEN_CLASS + ' {' +
             'transform:translate3d(0,0,0)!important;pointer-events:auto!important;' +
@@ -104,7 +109,9 @@
 
     let activeNav = null;
     let activeHost = null;
-    let originalWidthProperty = null;
+    let originalHostProperties = null;
+    let expandedWidth = CONFIG.panelWidthFallback;
+    let collapsedWidth = 56;
     let isTheater = false;
     let isOpen = false;
     let showTimer = null;
@@ -136,20 +143,46 @@
         hideTimer = null;
     }
 
-    function restoreWidthProperty(host) {
-        if (!host || !originalWidthProperty) return;
-        if (originalWidthProperty.value) {
-            host.style.setProperty('--tts-hover-width', originalWidthProperty.value, originalWidthProperty.priority);
-        } else {
-            host.style.removeProperty('--tts-hover-width');
+    function restoreHostProperties(host) {
+        if (!host || !originalHostProperties) return;
+        for (const [property, saved] of Object.entries(originalHostProperties)) {
+            if (saved.value) host.style.setProperty(property, saved.value, saved.priority);
+            else host.style.removeProperty(property);
         }
-        originalWidthProperty = null;
+        originalHostProperties = null;
+    }
+
+    function isSidebarCollapsed(nav) {
+        if (!nav) return false;
+        const sideNav = nav.closest('.side-nav') || nav;
+        return sideNav.classList.contains('side-nav--collapsed') ||
+            nav.classList.contains('side-nav--collapsed');
+    }
+
+    function readSidebarBackground(nav) {
+        const sideNav = nav && (nav.closest('.side-nav') || nav);
+        if (!sideNav) return '#26262c';
+        const background = getComputedStyle(sideNav).backgroundColor;
+        return background && background !== 'rgba(0, 0, 0, 0)' ? background : '#26262c';
+    }
+
+    function syncHostWidth() {
+        if (!activeHost || !activeNav || !activeHost.isConnected || !activeNav.isConnected) return;
+        const sideNav = activeNav.closest('.side-nav') || activeNav;
+        const measured = sideNav.getBoundingClientRect().width;
+        if (isSidebarCollapsed(activeNav)) {
+            const width = measured >= 42 && measured <= 144 ? Math.round(measured) : collapsedWidth;
+            activeHost.style.setProperty('--tts-hover-width', width + 'px');
+        } else {
+            activeHost.style.setProperty('--tts-hover-width', expandedWidth + 'px');
+        }
+        activeHost.style.setProperty('--tts-hover-bg', readSidebarBackground(activeNav));
     }
 
     function releaseHost() {
         if (activeHost) {
             activeHost.classList.remove(OPEN_CLASS, HOST_CLASS);
-            restoreWidthProperty(activeHost);
+            restoreHostProperties(activeHost);
         }
         activeHost = null;
         activeNav = null;
@@ -172,23 +205,35 @@
         activeNav = nav;
         activeHost = host;
 
-        const navRect = nav.getBoundingClientRect();
-        const hostRect = host.getBoundingClientRect();
+        const sideNav = nav.closest('.side-nav') || nav;
         const measuredWidth = Math.ceil(Math.max(
-            navRect.width || 0,
-            hostRect.width || 0,
+            sideNav.getBoundingClientRect().width || 0,
+            host.getBoundingClientRect().width || 0,
             CONFIG.panelWidthFallback
         ));
-        const width = Math.min(Math.max(measuredWidth, 200), 360);
+        expandedWidth = Math.min(Math.max(measuredWidth, 180), 360);
+        const measuredCollapsedWidth = sideNav.getBoundingClientRect().width;
+        collapsedWidth = measuredCollapsedWidth >= 42 && measuredCollapsedWidth <= 144
+            ? Math.round(measuredCollapsedWidth)
+            : 56;
+        const currentCollapsed = isSidebarCollapsed(nav);
 
-        originalWidthProperty = {
-            value: host.style.getPropertyValue('--tts-hover-width'),
-            priority: host.style.getPropertyPriority('--tts-hover-width')
+        originalHostProperties = {
+            '--tts-hover-width': {
+                value: host.style.getPropertyValue('--tts-hover-width'),
+                priority: host.style.getPropertyPriority('--tts-hover-width')
+            },
+            '--tts-hover-bg': {
+                value: host.style.getPropertyValue('--tts-hover-bg'),
+                priority: host.style.getPropertyPriority('--tts-hover-bg')
+            }
         };
 
-        host.style.setProperty('--tts-hover-width', width + 'px');
+        host.style.setProperty('--tts-hover-width', (currentCollapsed ? collapsedWidth : expandedWidth) + 'px');
+        host.style.setProperty('--tts-hover-bg', readSidebarBackground(nav));
         document.documentElement.classList.add(ROOT_CLASS);
         host.classList.add(HOST_CLASS);
+        syncHostWidth();
 
         if (wasOpen) scheduleOpen();
     }
@@ -220,6 +265,7 @@
         // classes and never overwrite Twitch's original layout styles.
         document.documentElement.classList.add(ROOT_CLASS);
         activeHost.classList.add(HOST_CLASS);
+        syncHostWidth();
         if (isOpen) activeHost.classList.add(OPEN_CLASS);
     }
 
@@ -311,8 +357,9 @@
             )
             : null;
         if (!toggle) return;
-        window.setTimeout(syncState, 0);
-        window.setTimeout(syncState, 140);
+        window.setTimeout(() => { syncState(); syncHostWidth(); }, 0);
+        window.setTimeout(() => { syncState(); syncHostWidth(); }, 160);
+        window.setTimeout(() => { syncState(); syncHostWidth(); }, 340);
     }, true);
 
     document.addEventListener('pointerdown', event => {
@@ -325,7 +372,10 @@
 
     // Poll for theater toggles and Twitch SPA replacing the navigation; no observer.
     syncState();
-    syncTimer = window.setInterval(syncState, CONFIG.statePollMs);
+    syncTimer = window.setInterval(() => {
+        syncState();
+        syncHostWidth();
+    }, CONFIG.statePollMs);
 
     window.addEventListener('pagehide', () => {
         clearTimers();
