@@ -1,32 +1,27 @@
 # Twitch Theater Sidebar on Hover
 
-A Tampermonkey userscript that reveals Twitch's **original left navigation** (including the "For You" section) when you hover the left edge in theater mode.
+Tampermonkey userscript that moves Twitch's **existing left navigation** (the "For You" sidebar) into view when hovering the left edge in theater mode. It does not create a cloned sidebar.
 
 ## Install
 
 1. Install Tampermonkey.
-2. Open the [raw userscript](https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js).
-3. Confirm installation in Tampermonkey, then reload Twitch.
+2. Open the [Raw userscript](https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js).
+3. Confirm installation and reload Twitch.
 
 ## Automatic updates
 
-The script includes `@updateURL` and `@downloadURL` metadata pointing to this repository's stable Raw URL. Tampermonkey can check that URL for new versions and install them without reinstalling the script manually.
+The script declares `@updateURL` and `@downloadURL` pointing at the stable `main` Raw URL. Enable automatic userscript update checking in Tampermonkey's settings.
 
-To make sure updates are enabled:
-1. Open the Tampermonkey Dashboard.
-2. Open **Settings** and make sure userscript updates / automatic update checking are enabled.
-3. Keep this script enabled. When a higher `@version` is published to the same Raw URL, Tampermonkey can detect the new version on its next update check.
+For an immediate, cache-independent download of a specific published version, use the immutable commit URL from the latest commit page.
 
-The install URL stays the same:
-`https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js`
+## Troubleshooting
 
-## Behavior
+- Check the script is enabled in Tampermonkey.
+- In the Twitch theatre/player page, move the cursor all the way to the left edge.
+- If the sidebar doesn't appear, report the browser console errors and your current userscript version in the repository's Issues section.
 
-- Uses Twitch's existing `.side-nav` element. It does not create a cloned sidebar or a second panel.
-- Reveals the original navigation after hovering near the screen's left edge in theater mode.
-- If Twitch has the sidebar collapsed, it uses Twitch's own sidebar toggle to expand it while visible.
-- If the script expanded the navigation, it collapses it again after the panel closes. If it was already expanded, the script does not collapse it.
-- Hides when the pointer leaves the sidebar, when you click elsewhere, or when you press Escape.
-- Watches for Twitch's single-page navigation and sidebar replacement.
+## Notes
 
-The script runs on `https://www.twitch.tv/*` and requests no special Tampermonkey permissions.
+- The native Twitch navigation is repositioned; no second panel or copied channel list is created.
+- The script avoids a page-wide `MutationObserver` to reduce the risk of slowing Twitch's frequently rerendered UI.
+- It runs on `https://www.twitch.tv/*` and requests no special Tampermonkey permissions.
