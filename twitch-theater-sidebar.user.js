@@ -3,8 +3,8 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      5.4.1
-// @description  Auto-collapse Twitch's native sidebar in theater mode and reveal its icon rail on hover.
+// @version      5.4.2
+// @description  Auto-collapse Twitch's native sidebar in theater mode and show image-only channel hover previews.
 // @match        https://www.twitch.tv/*
 // @noframes
 // @updateURL    https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js
@@ -86,6 +86,21 @@
             'transform:translate3d(0,0,0)!important;pointer-events:auto!important;' +
             'box-shadow:5px 0 24px rgba(0,0,0,.38)!important;' +
         '}' +
+        // Hide extra labels inside channel cards only while the theater sidebar is active.
+        // The native avatar, link, channel title, viewer count and collapse control remain intact.
+        'html.' + ROOT_CLASS + ' #side-nav .side-nav-card__metadata,' +
+        'html.' + ROOT_CLASS + ' #side-nav [data-a-target="side-nav-card-metadata"],' +
+        'html.' + ROOT_CLASS + ' #side-nav .side-nav-card__description,' +
+        'html.' + ROOT_CLASS + ' #side-nav [data-a-target="side-nav-card-description"],' +
+        'html.' + ROOT_CLASS + ' #side-nav .side-nav-card__category,' +
+        'html.' + ROOT_CLASS + ' #side-nav [data-a-target="side-nav-card-category"],' +
+        'html.' + ROOT_CLASS + ' #side-nav .side-nav-card__game,' +
+        'html.' + ROOT_CLASS + ' #side-nav .side-nav-card__live-label,' +
+        'html.' + ROOT_CLASS + ' #side-nav .side-nav-card__live-status-label,' +
+        'html.' + ROOT_CLASS + ' #side-nav [data-a-target="side-nav-card-live-label"],' +
+        'html.' + ROOT_CLASS + ' #side-nav .side-nav-card__badge{' +
+            'display:none!important;' +
+        '}' +
         '@media(prefers-reduced-motion:reduce){html.' + ROOT_CLASS + ' .' + HOST_CLASS + '{transition:none!important;}}';
     (document.head || document.documentElement).appendChild(style);
 
@@ -111,12 +126,8 @@
             'content:"";display:inline-block;width:7px;height:7px;border-radius:50%;' +
             'background:#eb0400;margin-right:5px;vertical-align:1px;' +
         '}' +
-        '#tts-channel-preview .tts-preview-category{' +
-            'display:none;padding:0 11px 8px;color:#adadb8;font-size:11px;' +
-            'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' +
-        '}' +
-        '#tts-channel-preview .tts-preview-video{' +
-            'display:block;width:100%;aspect-ratio:16/9;border:0;background:#000;' +
+        '#tts-channel-preview .tts-preview-image{' +
+            'display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#000;' +
         '}' +
         '#tts-settings-panel{' +
             'position:fixed;z-index:2147483647;width:300px;max-width:calc(100vw - 20px);' +
@@ -175,8 +186,7 @@
 
     const SETTINGS_KEY = 'tts-theater-sidebar-preferences-v1';
     const DEFAULT_PREFERENCES = Object.freeze({
-        previewEnabled: true,
-        compactPreview: true
+        previewEnabled: true
     });
     let preferences = loadPreferences();
     let previewCard = null;
@@ -212,12 +222,10 @@
             const saved = JSON.parse(localStorage.getItem('tts-theater-sidebar-preferences-v1') || '{}');
             return {
                 previewEnabled: typeof saved.previewEnabled === 'boolean'
-                    ? saved.previewEnabled : true,
-                compactPreview: typeof saved.compactPreview === 'boolean'
-                    ? saved.compactPreview : true
+                    ? saved.previewEnabled : DEFAULT_PREFERENCES.previewEnabled
             };
         } catch (_) {
-            return { previewEnabled: true, compactPreview: true };
+            return { previewEnabled: DEFAULT_PREFERENCES.previewEnabled };
         }
     }
 
@@ -298,22 +306,16 @@
             (image && image.getAttribute('alt')) ||
             link.getAttribute('aria-label') ||
             login;
-        const category = readText(card.querySelector('.side-nav-card__metadata, [data-a-target="side-nav-card-metadata"]'));
-
-        // Offline followed channels have no viewer count and cannot provide a live video.
+        // Offline followed channels have no viewer count and cannot provide a live preview.
         const avatarIsOffline = !!avatar.closest('.side-nav-card__avatar--offline') ||
             link.classList.contains('side-nav-card__link--offline');
         if (!viewers && avatarIsOffline) return null;
 
-        return { avatar, link, card, login, title, viewers, category };
+        return { avatar, link, card, login, title, viewers };
     }
 
     function removePreviewCard() {
-        if (previewCard) {
-            const iframe = previewCard.querySelector('iframe');
-            if (iframe) iframe.src = 'about:blank';
-            previewCard.remove();
-        }
+        if (previewCard) previewCard.remove();
         previewCard = null;
         previewAnchor = null;
         previewData = null;
@@ -341,13 +343,10 @@
         if (!previewCard || !previewData) return;
         const name = previewCard.querySelector('.tts-preview-name');
         const viewers = previewCard.querySelector('.tts-preview-viewers');
-        const category = previewCard.querySelector('.tts-preview-category');
         name.textContent = previewData.title;
         name.title = previewData.title;
         viewers.textContent = previewData.viewers ? previewData.viewers : '';
         viewers.style.display = previewData.viewers ? '' : 'none';
-        category.textContent = previewData.category;
-        category.style.display = !preferences.compactPreview && previewData.category ? 'block' : 'none';
         positionPreview();
     }
 
@@ -376,22 +375,18 @@
         const viewers = document.createElement('div');
         viewers.className = 'tts-preview-viewers';
 
-        const category = document.createElement('div');
-        category.className = 'tts-preview-category';
-
-        const frame = document.createElement('iframe');
-        frame.className = 'tts-preview-video';
-        frame.title = 'Предпросмотр канала ' + hit.title;
-        frame.allow = 'autoplay; encrypted-media; picture-in-picture';
-        frame.referrerPolicy = 'origin';
-        frame.loading = 'eager';
-        frame.setAttribute('playsinline', '');
-        frame.src = 'https://player.twitch.tv/?channel=' +
-            encodeURIComponent(hit.login) +
-            '&parent=www.twitch.tv&muted=true&autoplay=true&controls=false&quality=160p30';
+        const image = document.createElement('img');
+        image.className = 'tts-preview-image';
+        image.alt = 'Миниатюра трансляции ' + hit.title;
+        image.loading = 'eager';
+        image.decoding = 'async';
+        image.referrerPolicy = 'no-referrer';
+        image.src = 'https://static-cdn.jtvnw.net/previews-ttv/live_user_' +
+            encodeURIComponent(hit.login.toLowerCase()) +
+            '-320x180.jpg?ts=' + Date.now();
 
         header.append(name, viewers);
-        card.append(header, category, frame);
+        card.append(header, image);
         document.body.appendChild(card);
         previewCard = card;
         renderPreviewDetails();
@@ -477,7 +472,6 @@
             preferences[key] = input.checked;
             savePreferences();
             if (key === 'previewEnabled' && !preferences.previewEnabled) hideChannelPreview();
-            if (key === 'compactPreview') renderPreviewDetails();
         });
 
         const textBox = document.createElement('span');
@@ -537,12 +531,7 @@
             makeSettingsToggle(
                 'previewEnabled',
                 'Превью при наведении',
-                'Показывать небольшое окно трансляции у аватарки.'
-            ),
-            makeSettingsToggle(
-                'compactPreview',
-                'Только название и зрители',
-                'Скрывать категорию и остальные подписи в превью.'
+                'Показывать миниатюру трансляции рядом с аватаркой в театральном режиме.'
             )
         );
 
@@ -560,7 +549,6 @@
         panel.style.display = 'block';
         const inputs = panel.querySelectorAll('input[type="checkbox"]');
         if (inputs[0]) inputs[0].checked = !!preferences.previewEnabled;
-        if (inputs[1]) inputs[1].checked = !!preferences.compactPreview;
         placeSettingsPanel();
         const item = settingsMenuItem;
         if (item) item.setAttribute('aria-expanded', 'true');
