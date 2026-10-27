@@ -15,9 +15,10 @@ Tampermonkey userscript that smoothly slides Twitch's **original left navigation
 - Smooth slide-in/slide-out animation with no decorative strip at the screen edge.
 - Automatically uses Twitch's native collapse control in theater mode, leaving only stream avatars visible; restores the prior expanded/collapsed state when leaving theater mode.
 - The wrapper background is taken from the actual Twitch sidebar theme, preventing a transparent gap if the collapsed rail has a few unused pixels.
-- Hovering a live channel avatar briefly opens a small, muted Twitch video preview; it disappears immediately when the pointer leaves the avatar.
-- The preview shows the channel name and viewer count by default, without category/extra labels.
-- Open the chat gear menu and choose **Настройки Theater Sidebar** to enable/disable previews or show category text. Choices are saved locally.
+- In theater mode, channel cards keep only the channel name and viewer count; category, description and extra channel labels are hidden only in the native channel list while theater mode is active.
+- Hovering a live channel avatar shows a compact **thumbnail image** from Twitch's preview image CDN beside the avatar (no embedded player or iframe). The thumbnail disappears immediately when the pointer leaves the avatar.
+- The preview card contains only the channel name and viewer count. Open the chat gear menu and choose **Настройки Theater Sidebar** to enable/disable hover previews. The preference is saved locally.
+- Visual reference: [Previews (for Twitch, YouTube & Kick)](https://chromewebstore.google.com/detail/previews-for-twitch-youtu/hpmbiinljekjjcjgijnlbmgcmoonclah). This userscript uses its hover-preview behavior as inspiration and does not copy its code.
 - Keeps the panel open while the pointer is over it; closes after moving away, on outside click, or Escape.
 - Restores the wrapper's prior custom properties and removes temporary classes when theater mode ends.
 - No page-wide MutationObserver; follows theater toggles and SPA replacements with a lightweight poll.
