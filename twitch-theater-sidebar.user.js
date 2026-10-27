@@ -98,7 +98,9 @@
         'html.' + ROOT_CLASS + '.tts-hide-descriptions #side-nav .side-nav-card__subtitle,' +
         'html.' + ROOT_CLASS + '.tts-hide-descriptions #side-nav [data-a-target="side-nav-card-subtitle"],' +
         'html.' + ROOT_CLASS + '.tts-hide-descriptions #side-nav .side-nav-card__preview,' +
-        'html.' + ROOT_CLASS + '.tts-hide-descriptions #side-nav .side-nav-card__details > :not(.side-nav-card__title):not(.side-nav-card__metadata):not(:has(.side-nav-card__title)):not(:has(.side-nav-card__viewers)):not(:has([data-a-target="side-nav-card-viewers"])){' +
+        'html.' + ROOT_CLASS + '.tts-hide-descriptions #side-nav .side-nav-card__live-status > p,' +
+        'html.' + ROOT_CLASS + '.tts-hide-descriptions #side-nav [data-a-target="side-nav-live-status"] > p,' +
+        'html.' + ROOT_CLASS + '.tts-hide-descriptions #side-nav .side-nav-card__details > :not(.side-nav-card__title):not(.side-nav-card__metadata):not(.side-nav-card__live-status):not(:has(.side-nav-card__title)):not(:has(.side-nav-card__viewers)):not(:has([data-a-target="side-nav-card-viewers"])):not(:has(.side-nav-card__live-status)){' +
             'display:none!important;' +
         '}' +
         'html.' + ROOT_CLASS + '.tts-hide-categories #side-nav .side-nav-card__category,' +
@@ -328,6 +330,7 @@
             '[data-a-target="side-nav-card-viewers"]',
             '[data-a-target*="viewer" i]',
             '.side-nav-card__viewers',
+            '.side-nav-card__live-status span[aria-hidden="true"]',
             '[class*="viewers" i]',
             '[aria-label*="viewer" i]',
             '[aria-label*="зрител" i]',
