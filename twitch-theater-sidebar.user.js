@@ -1,7 +1,9 @@
 // ==UserScript==
 // @name         Twitch Theater Sidebar on Hover
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
-// @version      2.0.3
+// @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
+// @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
+// @version      2.0.4
 // @description  Slide Twitch's original For You/sidebar out from the left edge in theater mode.
 // @match        https://www.twitch.tv/*
 // @updateURL    https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js
