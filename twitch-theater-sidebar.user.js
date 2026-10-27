@@ -113,7 +113,7 @@
 
     style.textContent +=
         '#tts-channel-preview{' +
-            'position:fixed;display:none;width:var(--tts-preview-width,360px);max-width:calc(100vw - 16px);'
+            'position:fixed;display:none;width:var(--tts-preview-width,360px);max-width:calc(100vw - 16px);' +
             'z-index:2147483647;background:#18181b;color:#efeff1;' +
             'border:1px solid rgba(255,255,255,.13);border-radius:9px;overflow:hidden;' +
             'box-shadow:0 12px 38px rgba(0,0,0,.55);pointer-events:none;' +
@@ -257,7 +257,7 @@
                 hideDescriptions: typeof saved.hideDescriptions === 'boolean' ? saved.hideDescriptions : DEFAULT_PREFERENCES.hideDescriptions,
                 hideCategories: typeof saved.hideCategories === 'boolean' ? saved.hideCategories : DEFAULT_PREFERENCES.hideCategories,
                 autoCollapseSidebar: typeof saved.autoCollapseSidebar === 'boolean' ? saved.autoCollapseSidebar : DEFAULT_PREFERENCES.autoCollapseSidebar,
-                animationSpeed: [150, 250, 400].includes(Number(saved.animationSpeed)) ? Number(saved.animationSpeed) : DEFAULT_PREFERENCES.animationSpeed
+                animationSpeed: [0, 150, 250, 400].includes(Number(saved.animationSpeed)) ? Number(saved.animationSpeed) : DEFAULT_PREFERENCES.animationSpeed
             };
         } catch (_) {
             return { ...DEFAULT_PREFERENCES };
@@ -514,7 +514,7 @@
         image.addEventListener('error', () => {
             if (image.dataset.fallbackTried !== '1') {
                 image.dataset.fallbackTried = '1';
-                image.src = thumbnailUrl(hit.login, '320x180');
+                image.src = thumbnailUrl(hit.login, thumbnailSizeForPreview() === '320x180' ? '440x248' : '320x180');
             } else {
                 image.classList.remove('tts-preview-image-loaded');
             }
@@ -683,7 +683,6 @@
                     if (img) {
                         img.classList.remove('tts-preview-image-loaded');
                         img.dataset.fallbackTried = '';
-                        img.style.backgroundImage = '';
                         img.src = thumbnailUrl(previewData.login);
                     }
                 }
@@ -742,6 +741,7 @@
 
         const animationSection = makeSettingsSection(panel, 'Анимация', 'Настройте скорость выезда боковой панели.');
         makeSettingsSelect(animationSection, 'animationSpeed', 'Скорость анимации', 'Более короткая длительность делает движение быстрее.', [
+            { value: 0, label: 'Выключена' },
             { value: 150, label: 'Быстро' },
             { value: 250, label: 'Обычная' },
             { value: 400, label: 'Плавно' }
@@ -771,7 +771,12 @@
         settingsBackdrop.style.display = 'flex';
         panel.style.display = 'block';
         panel.querySelectorAll('[data-preference]').forEach(control => {
-            control.value = String(preferences[control.dataset.preference]);
+            const key = control.dataset.preference;
+            if (control instanceof HTMLInputElement && control.type === 'checkbox') {
+                control.checked = !!preferences[key];
+            } else {
+                control.value = String(preferences[key]);
+            }
         });
         const item = settingsMenuItem;
         if (item) item.setAttribute('aria-expanded', 'true');
