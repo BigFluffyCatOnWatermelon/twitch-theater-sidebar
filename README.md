@@ -1,29 +1,25 @@
-# Twitch Theater Sidebar — diagnostic build
+# Twitch Theater Sidebar on Hover
 
-This Tampermonkey userscript tests ways to reveal Twitch's **original** left navigation ("For You"). It does not clone the list of streams.
+Tampermonkey userscript that smoothly slides Twitch's **original left navigation** (the "For You" sidebar) into view when hovering the left edge in theater mode.
 
-## Install / update
+## Install
 
-Open the [Raw userscript](https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js) in Tampermonkey. Automatic updates use the same stable Raw URL.
+1. Install Tampermonkey.
+2. Open the [Raw userscript](https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js).
+3. Install/update it and reload Twitch.
 
-## Current default: Mode 11
+## Behavior
 
-The latest CSS audit for `https://www.twitch.tv/melharucos` showed that `#side-nav` and its ancestors have visible computed styles, with no matching hide rule found in accessible stylesheets. The actual `.side-nav` is inside a wrapper with `position: relative; z-index: 10`, while the stream stage above it has `overflow: hidden`.
+- No diagnostic toolbar, cloned list, or duplicate sidebar.
+- Reuses the native navigation and the outer wrapper confirmed to work on Twitch's current layout.
+- Smooth slide-in/slide-out animation with a subtle edge handle while hidden.
+- Keeps the panel open while the pointer is over it; closes after moving away, on outside click, or Escape.
+- Removes its temporary layout classes and restores the wrapper's original width property when theater mode ends. Twitch's normal layout styles are otherwise not changed.
+- Responds directly to the theater-mode toggle and checks SPA state every 500 ms as a fallback.
+- Honors reduced-motion settings.
 
-Mode **11 — External wrapper** is now the default edge-hover action. It temporarily positions the actual parent wrapper of `.side-nav` above the player, rather than only moving the inner `#side-nav` node.
+## Automatic updates
 
-## Diagnostic modes
+The script uses the stable Raw URL in both `@updateURL` and `@downloadURL`. Automatic userscript update checking must be enabled in Tampermonkey.
 
-1. `#side-nav`
-2. aria-label navigation
-3. `.side-nav`
-4. `data-test-selector`
-5. `data-a-target`
-6. parent wrapper of the strongest navigation candidate
-7. force inline styles on the candidate
-8. Twitch's native expand button
-9. outline candidate elements
-10. CSS audit: computed styles and accessible matching rules
-11. external stacking wrapper: intended edge-hover default based on the audit
-
-No page-wide MutationObserver is used.
+If you still see the old diagnostic toolbar, disable any separate old **Twitch Theater Sidebar — Diagnostic Modes** copy in Tampermonkey and keep only this script enabled.
