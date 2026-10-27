@@ -3,7 +3,7 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      2.0.6
+// @version      2.0.7
 // @description  Slide Twitch's original For You/sidebar out from the left edge in theater mode.
 // @match        https://www.twitch.tv/*
 // @noframes
@@ -71,25 +71,31 @@
 
     const root = document.documentElement;
 
-    // Prefer the actual navigation root. A descendant can also have .side-nav,
-    // but moving that descendant alone does not reveal Twitch's full "For You" panel.
+    // Prefer known Twitch navigation roots. Do NOT choose data-test-selector first:
+    // on some layouts it is attached to an inner wrapper, not the full "For You" nav.
     const SIDEBAR_SELECTORS = [
         '#side-nav',
-        '[data-test-selector="side-nav"]',
         '[aria-label="Left Navigation"]',
         '.side-bar-contents nav',
+        '.side-nav',
         '[data-a-target="side-nav-bar"]',
-        '.side-nav'
+        '[data-test-selector="side-nav"]'
     ];
 
     const THEATER_SELECTORS = [
         '.channel-root__scroll-area--theatre-mode',
+        '.twilight-main--theatre',
+        '[class*="theatre--"]',
+        '[class*="theater--"]',
+        '[data-a-target="player-overlay-click-handler"][class*="theatre"]',
         '.channel-root--theatre',
         '.channel-root--theater',
         '[class*="channel-root"][class*="theatre"]',
         '[class*="channel-root"][class*="theater"]',
         'button[aria-label*="Exit Theatre Mode" i]',
         'button[aria-label*="Exit Theater Mode" i]',
+        'button[title*="Exit Theatre Mode" i]',
+        'button[title*="Exit Theater Mode" i]',
         '[data-a-target="player-theatre-mode-button"][aria-pressed="true"]'
     ];
 
@@ -112,7 +118,19 @@
     }
 
     function isTheaterMode() {
-        return THEATER_SELECTORS.some(selector => document.querySelector(selector) !== null);
+        if (THEATER_SELECTORS.some(selector => document.querySelector(selector) !== null)) {
+            return true;
+        }
+
+        // Twitch can change theatre-specific classes. On a stream page, use the
+        // actual player's geometry as a fallback when it occupies the main stage.
+        if (!/^\/(?!directory|downloads|inventory|settings|wallet|subscriptions|turbo|videos|search|jobs)([^/]+)\/?$/.test(location.pathname)) {
+            return false;
+        }
+        const player = document.querySelector('.video-player, [data-a-target="player-overlay-click-handler"]');
+        if (!player) return false;
+        const rect = player.getBoundingClientRect();
+        return rect.width >= window.innerWidth * 0.78 && rect.height >= window.innerHeight * 0.45;
     }
 
     function getToggleButton(nav) {
@@ -253,10 +271,9 @@
         if (!theaterActive) return;
         clearTimeout(hideTimer);
         hideTimer = null;
-        if (isOpen) return;
+        if (isOpen || showTimer !== null) return;
         clearTimeout(collapseTimer);
         collapseTimer = null;
-        clearTimeout(showTimer);
         showTimer = setTimeout(openSidebar, CONFIG.showDelay);
     }
 
@@ -348,10 +365,11 @@
     document.addEventListener('mousemove', event => {
         lastPointerX = event.clientX;
 
-        // Re-check only while the pointer is at the activation edge. This catches
-        // Theater Mode immediately even if Twitch's layout changed after the last poll.
-        if (event.clientX <= CONFIG.edgeWidth && !theaterActive && isTheaterMode()) {
-            syncState();
+        // Re-discover the native navigation at the edge. Twitch may replace its
+        // navigation during SPA updates without any broad DOM observer running.
+        if (event.clientX <= CONFIG.edgeWidth) {
+            if (!theaterActive && isTheaterMode()) syncState();
+            else if (theaterActive && (!sidebar || !sidebar.isConnected)) syncState();
         }
         if (!theaterActive) return;
 
