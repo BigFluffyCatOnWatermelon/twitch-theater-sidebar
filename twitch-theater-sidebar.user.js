@@ -3,7 +3,7 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      5.4.8
+// @version      5.4.9
 // @description  Theater-mode sidebar with fast cached thumbnail previews and configurable controls.
 // @match        https://www.twitch.tv/*
 // @noframes
@@ -560,7 +560,14 @@
         const now = Date.now();
         const cached = streamInfoCache.get(login);
         if (!forceRefresh && cached && cached.expiresAt > now) return cached.value;
-        if (streamInfoRequests.has(login)) return streamInfoRequests.get(login);
+        if (streamInfoRequests.has(login)) {
+            const pendingRequest = streamInfoRequests.get(login);
+            if (!forceRefresh) return pendingRequest;
+            // If a batch query started just before this channel went live, retry after its stale result.
+            return Promise.resolve(pendingRequest).then(info =>
+                info || fetchLiveStreamInfo(login, true)
+            );
+        }
 
         const request = (async () => {
             try {
