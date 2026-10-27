@@ -3,9 +3,10 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      2.0.4
+// @version      2.0.5
 // @description  Slide Twitch's original For You/sidebar out from the left edge in theater mode.
 // @match        https://www.twitch.tv/*
+// @noframes
 // @updateURL    https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js
 // @downloadURL  https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js
 // @run-at       document-idle
@@ -23,7 +24,6 @@
         hideDelay: 260,
         animationMs: 220,
         pollMs: 800,
-        mutationDebounceMs: 180
     });
 
     const ROOT_CLASS = 'tts-theater-mode-active';
@@ -98,7 +98,6 @@
     let showTimer = null;
     let hideTimer = null;
     let collapseTimer = null;
-    let mutationTimer = null;
     let lastPointerX = Number.POSITIVE_INFINITY;
     let savedTopProperty = null;
 
@@ -388,33 +387,8 @@
         }
     }, true);
 
-    function scheduleSync() {
-        if (mutationTimer !== null) return;
-        mutationTimer = setTimeout(() => {
-            mutationTimer = null;
-            syncState();
-        }, CONFIG.mutationDebounceMs);
-    }
-
-    // Twitch is a single-page app; handle theater toggles and native nav replacement.
-    const observer = new MutationObserver(mutations => {
-        // Restore our classes immediately if Twitch rewrites the native nav className.
-        if (mutations.some(mutation =>
-            mutation.type === 'attributes' &&
-            (mutation.target === sidebar || mutation.target === root)
-        )) {
-            syncState();
-            return;
-        }
-        scheduleSync();
-    });
-    observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['class', 'aria-label', 'aria-pressed']
-    });
-
-    window.setInterval(syncState, CONFIG.pollMs);
+    // Avoid observing Twitch's large and frequently changing React tree.
+    // A low-frequency poll is enough to detect theater toggles and route changes.
+    window.setInterval(syncState, Math.max(CONFIG.pollMs, 1200));
     syncState();
 })();
