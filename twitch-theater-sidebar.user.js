@@ -3,7 +3,7 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      5.4.4
+// @version      5.4.5
 // @description  Theater-mode sidebar with fast cached thumbnail previews and configurable controls.
 // @match        https://www.twitch.tv/*
 // @noframes
@@ -91,6 +91,15 @@
             'box-shadow:5px 0 24px rgba(0,0,0,.38)!important;' +
         '}' +
         // These switches affect only channel-card copy while the theater sidebar is active.
+        // Twitch puts the tooltip arrow and a status-only paragraph next to live metadata.
+        'html.' + ROOT_CLASS + '.tts-hide-descriptions #side-nav .side-nav-card__link__tooltip-arrow,' +
+        'html.' + ROOT_CLASS + '.tts-hide-descriptions #side-nav [data-a-target="side-nav-card-link-tooltip-arrow"],' +
+        'html.' + ROOT_CLASS + '.tts-hide-descriptions #side-nav .side-nav-card__live-status > p,' +
+        'html.' + ROOT_CLASS + '.tts-hide-descriptions #side-nav [data-a-target="side-nav-live-status"] > p,' +
+        'html.' + ROOT_CLASS + '.tts-hide-descriptions #side-nav [data-a-target="side-nav-card-metadata"] .side-nav-card__metadata p,' +
+        'html.' + ROOT_CLASS + '.tts-hide-descriptions #side-nav .side-nav-card__metadata p{' +
+            'display:none!important;' +
+        '}' +
         // Keep native avatars, channel titles, viewer counts and the collapse control intact.
         'html.' + ROOT_CLASS + '.tts-hide-descriptions #side-nav .side-nav-card__description,' +
         'html.' + ROOT_CLASS + '.tts-hide-descriptions #side-nav [data-a-target="side-nav-card-description"],' +
@@ -135,6 +144,11 @@
         '}' +
         '#tts-channel-preview .tts-preview-name{' +
             'font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' +
+        '}' +
+        '#tts-channel-preview .tts-preview-stream-title{' +
+            'padding:0 11px 9px;font-size:12px;line-height:1.35;color:#c8c8d0;' +
+            'overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;' +
+            'overflow-wrap:anywhere;' +
         '}' +
         '#tts-channel-preview .tts-preview-viewers{' +
             'font-size:12px;color:#dedee3;white-space:nowrap;flex-shrink:0;' +
@@ -234,7 +248,6 @@
     let previewData = null;
     let thumbnailPreloadCache = new Map();
     const channelInfoCache = new Map();
-    const hiddenTextWrappers = new Set();
     let settingsPanel = null;
     let settingsBackdrop = null;
     let settingsMenuItem = null;
@@ -310,82 +323,11 @@
         return element ? (element.innerText || element.textContent || '').replace(/\s+/g, ' ').trim() : '';
     }
 
-    function restoreHiddenExtraText() {
-        for (const wrapper of hiddenTextWrappers) {
-            if (!wrapper.isConnected || !wrapper.parentNode) continue;
-            while (wrapper.firstChild) wrapper.parentNode.insertBefore(wrapper.firstChild, wrapper);
-            wrapper.remove();
-        }
-        hiddenTextWrappers.clear();
-    }
-
-    function isProtectedSidebarText(element, text, title, login) {
-        if (!element || !text) return true;
-        if (element.closest(
-            'button,[role="button"],[data-a-target="side-nav-arrow"],' +
-            '.side-nav-card__title,[data-a-target="side-nav-card-title"],' +
-            '.side-nav-card__viewers,[data-a-target="side-nav-card-viewers"],' +
-            '.side-nav-card__live-status span[aria-hidden="true"],' +
-            '[class*="viewer-count" i],[class*="viewers" i]'
-        )) return true;
-
-        const normalized = text.replace(/\s+/g, ' ').trim();
-        if (!normalized) return true;
-        if (title && normalized.toLowerCase() === title.toLowerCase()) return true;
-        if (login && normalized.toLowerCase() === login.toLowerCase()) return true;
-        // Preserve simple live counts even when Twitch changes its class names.
-        if (/^\d+(?:[.,]\d+)?\s*[KMB]?$/i.test(normalized) &&
-            element.closest('.side-nav-card__live-status,[data-a-target*="live-status" i]')) return true;
-        return false;
-    }
-
     function hideExtraChannelText(nav) {
-        if (!nav || !isTheater || !preferences.hideDescriptions) {
-            restoreHiddenExtraText();
-            return;
-        }
-
-        const cards = nav.querySelectorAll('.side-nav-card,[data-a-target="side-nav-card"]');
-        for (const card of cards) {
-            const link = card.matches('a[href]') ? card : card.querySelector('a[href]');
-            const login = link ? parseChannelLogin(link.getAttribute('href') || '') : '';
-            const title = extractChannelTitle(card, link || card, login);
-            const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
-            const allTextNodes = [];
-            while (walker.nextNode()) {
-                const node = walker.currentNode;
-                if (!node.nodeValue || !node.nodeValue.trim()) continue;
-                const parent = node.parentElement;
-                if (!parent || parent.closest('[data-tts-hidden-extra-label="true"]')) continue;
-                allTextNodes.push(node);
-            }
-            // If Twitch changes its title class, preserve the first non-metadata text node as a fallback title.
-            const fallbackTitleNode = allTextNodes.find(node => {
-                const parent = node.parentElement;
-                if (!parent) return false;
-                if (parent.closest(
-                    '[class*="metadata" i],[class*="description" i],[class*="category" i],' +
-                    '[class*="game" i],[class*="subtitle" i],[class*="live-status" i]'
-                )) return false;
-                if (parent.closest('button,[role="button"],[data-a-target="side-nav-arrow"]')) return false;
-                return true;
-            });
-            const textNodes = allTextNodes.filter(node =>
-                node !== fallbackTitleNode &&
-                !isProtectedSidebarText(node.parentElement, node.nodeValue, title, login)
-            );
-
-            for (const node of textNodes) {
-                const parent = node.parentNode;
-                if (!parent || !node.isConnected) continue;
-                const wrapper = document.createElement('span');
-                wrapper.setAttribute('data-tts-hidden-extra-label', 'true');
-                wrapper.style.setProperty('display', 'none', 'important');
-                parent.replaceChild(wrapper, node);
-                wrapper.appendChild(node);
-                hiddenTextWrappers.add(wrapper);
-            }
-        }
+        if (!nav || !isTheater) return;
+        const root = document.documentElement;
+        root.classList.toggle('tts-hide-descriptions', !!preferences.hideDescriptions);
+        root.classList.toggle('tts-hide-categories', !!preferences.hideCategories);
     }
 
     function parseChannelLogin(href) {
@@ -408,65 +350,47 @@
         if (!card) return '';
         const selectors = [
             '[data-a-target="side-nav-card-viewers"]',
-            '[data-a-target*="viewer" i]',
             '.side-nav-card__viewers',
-            '.side-nav-card__live-status span[aria-hidden="true"]',
-            '[class*="viewers" i]',
-            '[aria-label*="viewer" i]',
-            '[aria-label*="зрител" i]',
-            '[title*="viewer" i]',
-            '[title*="зрител" i]'
+            '[data-a-target="side-nav-live-status"] span[aria-hidden="true"]',
+            '.side-nav-card__live-status span[aria-hidden="true"]'
         ];
-        const numberPattern = /(\d+(?:[.,]\d+)*(?:\s*[KMB])?)/i;
         for (const selector of selectors) {
-            for (const candidate of card.querySelectorAll(selector)) {
-                const combined = [
+            const candidates = card.querySelectorAll(selector);
+            for (const candidate of candidates) {
+                const value = [
                     readText(candidate),
                     candidate.getAttribute('aria-label') || '',
                     candidate.getAttribute('title') || ''
                 ].join(' ').trim();
-                const match = combined.match(numberPattern);
+                const match = value.match(/^\s*(\d+(?:[.,]\d+)*(?:\s*[KMB])?)\s*(?:viewers?|watching|зрител(?:ей|я|ь)?|смотрят)?\s*$/i);
                 if (match) return match[1].replace(/\s+/g, '');
-            }
-        }
-        const lines = (card.innerText || card.textContent || '')
-            .split(/\n+/).map(line => line.replace(/\s+/g, ' ').trim()).filter(Boolean);
-        for (const line of lines) {
-            if (/viewer|watching|зрител/i.test(line)) {
-                const match = line.match(numberPattern);
-                if (match) return match[1].replace(/\s+/g, '');
-            }
-        }
-        for (const line of lines) {
-            if (line.length <= 12 && /^\d+(?:[.,]\d+)?\s*[KMB]?$/i.test(line)) {
-                return line.replace(/\s+/g, '');
             }
         }
         return '';
     }
 
     function extractChannelTitle(card, link, login) {
+        if (!card) return login || '';
         const selectors = [
+            '.side-nav-card__title p[title]',
+            '.side-nav-card__title p',
+            '.side-nav-card__title span',
             '.side-nav-card__title',
-            '[data-a-target="side-nav-card-title"]',
-            '[class*="channel-name" i]',
-            '[class*="username" i]'
+            '[data-a-target="side-nav-card-title"] p[title]',
+            '[data-a-target="side-nav-card-title"] p',
+            '[data-a-target="side-nav-card-title"]'
         ];
         for (const selector of selectors) {
             const element = card.querySelector(selector);
-            const value = readText(element) ||
-                (element && (element.getAttribute('title') || element.getAttribute('aria-label'))) || '';
-            if (value) return value.replace(/['’]s profile picture$/i, '').trim();
+            if (!element) continue;
+            const value = (readText(element) || element.getAttribute('title') || '').trim();
+            if (!value) continue;
+            if (/^(?:arrow|tooltip|chevron|expand|collapse|open|close|left|right)\b/i.test(value)) continue;
+            if (value.length > 100) continue;
+            return value;
         }
-        const image = link.querySelector('img.tw-image-avatar, img');
-        const alt = image && image.getAttribute('alt') || '';
-        if (alt && !/profile picture|avatar/i.test(alt)) return alt.trim();
-        const label = link.getAttribute('aria-label') || link.getAttribute('title') || '';
-        if (label) {
-            const cleaned = label.replace(/\s+(?:profile|avatar|channel).*/i, '').trim();
-            if (cleaned) return cleaned;
-        }
-        return login;
+        // Don't use link aria-label/title: Twitch uses those for tooltip and arrow instructions.
+        return login || '';
     }
 
     function getChannelHoverHit(target) {
@@ -490,12 +414,12 @@
             link.classList.contains('side-nav-card__link--offline')) return null;
 
         const cached = channelInfoCache.get(login) || {};
-        const extractedTitle = extractChannelTitle(card, link, login);
-        const title = extractedTitle && extractedTitle.toLowerCase() !== login.toLowerCase()
-            ? extractedTitle : (cached.title || extractedTitle || login);
+        const extractedName = extractChannelTitle(card, link, login);
+        const channelName = extractedName && extractedName.toLowerCase() !== login.toLowerCase()
+            ? extractedName : (cached.channelName || login);
         const viewers = extractViewerCount(card) || cached.viewers || '';
-        if (title || viewers) channelInfoCache.set(login, { title, viewers });
-        return { avatar, link, card, login, title, viewers };
+        if (channelName || viewers) channelInfoCache.set(login, { ...cached, channelName, viewers });
+        return { avatar, link, card, login, channelName, streamTitle: cached.streamTitle || '', viewers };
     }
 
     function cacheSidebarChannelInfo(nav) {
@@ -507,14 +431,71 @@
             const old = channelInfoCache.get(login) || {};
             const offline = !!card.querySelector('.side-nav-card__avatar--offline') ||
                 link.classList.contains('side-nav-card__link--offline');
-            const extractedTitle = extractChannelTitle(card, link, login);
+            const extractedName = extractChannelTitle(card, link, login);
             const extractedViewers = offline ? '' : extractViewerCount(card);
             channelInfoCache.set(login, {
-                title: extractedTitle && extractedTitle.toLowerCase() !== login.toLowerCase()
-                    ? extractedTitle : (old.title || extractedTitle || login),
+                ...old,
+                channelName: extractedName && extractedName.toLowerCase() !== login.toLowerCase()
+                    ? extractedName : (old.channelName || login),
                 viewers: offline ? '' : (extractedViewers || old.viewers || '')
             });
         }
+    }
+
+    const TWITCH_WEB_CLIENT_ID = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
+    const STREAM_INFO_CACHE_MS = 45000;
+    const streamInfoCache = new Map();
+    const streamInfoRequests = new Map();
+
+    async function fetchLiveStreamInfo(login) {
+        const now = Date.now();
+        const cached = streamInfoCache.get(login);
+        if (cached && cached.expiresAt > now) return cached.value;
+        if (streamInfoRequests.has(login)) return streamInfoRequests.get(login);
+
+        const request = (async () => {
+            try {
+                const response = await fetch('https://gql.twitch.tv/gql', {
+                    method: 'POST',
+                    headers: {
+                        'Client-ID': TWITCH_WEB_CLIENT_ID,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: 'query TheaterSidebarPreview($login: String!) { user(login: $login) { displayName stream { title viewersCount game { name } } } }',
+                        variables: { login }
+                    }),
+                    credentials: 'omit',
+                    cache: 'no-store'
+                });
+                if (!response.ok) throw new Error('Twitch GQL request failed: ' + response.status);
+                const payload = await response.json();
+                const user = payload && payload.data && payload.data.user;
+                const stream = user && user.stream;
+                if (!user || !stream) {
+                    streamInfoCache.set(login, { value: null, expiresAt: Date.now() + 15000 });
+                    return null;
+                }
+
+                const value = {
+                    channelName: user.displayName || login,
+                    streamTitle: typeof stream.title === 'string' ? stream.title.trim() : '',
+                    viewers: Number.isFinite(Number(stream.viewersCount))
+                        ? Number(stream.viewersCount).toLocaleString() : '',
+                    category: stream.game && stream.game.name ? stream.game.name : ''
+                };
+                streamInfoCache.set(login, { value, expiresAt: Date.now() + STREAM_INFO_CACHE_MS });
+                channelInfoCache.set(login, { ...(channelInfoCache.get(login) || {}), ...value });
+                return value;
+            } catch (error) {
+                // Keep preview usable when Twitch's internal endpoint is unavailable.
+                return null;
+            } finally {
+                streamInfoRequests.delete(login);
+            }
+        })();
+        streamInfoRequests.set(login, request);
+        return request;
     }
 
     function thumbnailSizeForPreview() {
@@ -581,9 +562,12 @@
     function renderPreviewDetails() {
         if (!previewCard || !previewData) return;
         const name = previewCard.querySelector('.tts-preview-name');
+        const streamTitle = previewCard.querySelector('.tts-preview-stream-title');
         const viewers = previewCard.querySelector('.tts-preview-viewers');
-        name.textContent = previewData.title || previewData.login;
-        name.title = previewData.title || previewData.login;
+        name.textContent = previewData.channelName || previewData.login;
+        name.title = previewData.channelName || previewData.login;
+        streamTitle.textContent = previewData.streamTitle || '';
+        streamTitle.style.display = previewData.streamTitle ? 'block' : 'none';
         viewers.textContent = previewData.viewers || '—';
         viewers.style.display = '';
         positionPreview();
@@ -616,9 +600,12 @@
         const viewers = document.createElement('div');
         viewers.className = 'tts-preview-viewers';
 
+        const streamTitle = document.createElement('div');
+        streamTitle.className = 'tts-preview-stream-title';
+
         const image = document.createElement('img');
         image.className = 'tts-preview-image';
-        image.alt = 'Миниатюра трансляции ' + hit.title;
+        image.alt = 'Миниатюра трансляции ' + (hit.channelName || hit.login);
         image.loading = 'eager';
         image.decoding = 'async';
         image.referrerPolicy = 'no-referrer';
@@ -636,14 +623,22 @@
         image.src = thumbnailUrl(hit.login);
 
         header.append(name, viewers);
-        card.append(header, image);
+        card.append(header, streamTitle, image);
         document.body.appendChild(card);
         previewCard = card;
         applyPreferences();
         renderPreviewDetails();
         positionPreview();
-        const cached = thumbnailPreloadCache.get(image.src);
-        if (cached && cached.complete && cached.naturalWidth > 0) image.src = cached.src;
+        const cachedImage = thumbnailPreloadCache.get(image.src);
+        if (cachedImage && cachedImage.complete && cachedImage.naturalWidth > 0) image.src = cachedImage.src;
+
+        const requestedLogin = hit.login;
+        fetchLiveStreamInfo(requestedLogin).then(info => {
+            if (!info || !previewCard || !previewCard.isConnected ||
+                !previewData || previewData.login !== requestedLogin) return;
+            previewData = { ...previewData, ...info };
+            renderPreviewDetails();
+        });
     }
 
     function hideChannelPreview() {
@@ -749,10 +744,7 @@
             applyPreferences();
             if (key === 'previewEnabled' && !preferences.previewEnabled) hideChannelPreview();
             if (key === 'previewEnabled' && preferences.previewEnabled) preloadSidebarThumbnails();
-            if (key === 'hideDescriptions') {
-                if (preferences.hideDescriptions) hideExtraChannelText(findNav());
-                else restoreHiddenExtraText();
-            }
+            if (key === 'hideDescriptions') hideExtraChannelText(findNav());
             if (key === 'autoCollapseSidebar' && isTheater) {
                 if (preferences.autoCollapseSidebar) ensureNativeSidebarCollapsed(findNav());
                 else restoreNativeSidebarState();
@@ -1132,7 +1124,6 @@
         // Removing the root class disables every temporary rule, then restores
         // the host's original position/layout. No Twitch layout styles are retained.
         document.documentElement.classList.remove(ROOT_CLASS);
-        restoreHiddenExtraText();
         releaseHost();
         isTheater = false;
         restoreNativeSidebarState();
