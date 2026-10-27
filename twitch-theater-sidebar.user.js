@@ -3,7 +3,7 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      5.4.3
+// @version      5.4.4
 // @description  Theater-mode sidebar with fast cached thumbnail previews and configurable controls.
 // @match        https://www.twitch.tv/*
 // @noframes
@@ -234,6 +234,7 @@
     let previewData = null;
     let thumbnailPreloadCache = new Map();
     const channelInfoCache = new Map();
+    const hiddenTextWrappers = new Set();
     let settingsPanel = null;
     let settingsBackdrop = null;
     let settingsMenuItem = null;
@@ -309,6 +310,70 @@
         return element ? (element.innerText || element.textContent || '').replace(/\s+/g, ' ').trim() : '';
     }
 
+    function restoreHiddenExtraText() {
+        for (const wrapper of hiddenTextWrappers) {
+            if (!wrapper.isConnected || !wrapper.parentNode) continue;
+            while (wrapper.firstChild) wrapper.parentNode.insertBefore(wrapper.firstChild, wrapper);
+            wrapper.remove();
+        }
+        hiddenTextWrappers.clear();
+    }
+
+    function isProtectedSidebarText(element, text, title, login) {
+        if (!element || !text) return true;
+        if (element.closest(
+            'button,[role="button"],[data-a-target="side-nav-arrow"],' +
+            '.side-nav-card__title,[data-a-target="side-nav-card-title"],' +
+            '.side-nav-card__viewers,[data-a-target="side-nav-card-viewers"],' +
+            '.side-nav-card__live-status span[aria-hidden="true"],' +
+            '[class*="viewer-count" i],[class*="viewers" i]'
+        )) return true;
+
+        const normalized = text.replace(/\s+/g, ' ').trim();
+        if (!normalized) return true;
+        if (title && normalized.toLowerCase() === title.toLowerCase()) return true;
+        if (login && normalized.toLowerCase() === login.toLowerCase()) return true;
+        // Preserve simple live counts even when Twitch changes its class names.
+        if (/^\d+(?:[.,]\d+)?\s*[KMB]?$/i.test(normalized) &&
+            element.closest('.side-nav-card__live-status,[data-a-target*="live-status" i]')) return true;
+        return false;
+    }
+
+    function hideExtraChannelText(nav) {
+        if (!nav || !isTheater || !preferences.hideDescriptions) {
+            restoreHiddenExtraText();
+            return;
+        }
+
+        const cards = nav.querySelectorAll('.side-nav-card,[data-a-target="side-nav-card"]');
+        for (const card of cards) {
+            const link = card.matches('a[href]') ? card : card.querySelector('a[href]');
+            const login = link ? parseChannelLogin(link.getAttribute('href') || '') : '';
+            const title = extractChannelTitle(card, link || card, login);
+            const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+            const textNodes = [];
+            while (walker.nextNode()) {
+                const node = walker.currentNode;
+                if (!node.nodeValue || !node.nodeValue.trim()) continue;
+                const parent = node.parentElement;
+                if (!parent || parent.closest('[data-tts-hidden-extra-label="true"]')) continue;
+                if (isProtectedSidebarText(parent, node.nodeValue, title, login)) continue;
+                textNodes.push(node);
+            }
+
+            for (const node of textNodes) {
+                const parent = node.parentNode;
+                if (!parent || !node.isConnected) continue;
+                const wrapper = document.createElement('span');
+                wrapper.setAttribute('data-tts-hidden-extra-label', 'true');
+                wrapper.style.setProperty('display', 'none', 'important');
+                parent.replaceChild(wrapper, node);
+                wrapper.appendChild(node);
+                hiddenTextWrappers.add(wrapper);
+            }
+        }
+    }
+
     function parseChannelLogin(href) {
         try {
             const path = new URL(href, location.origin).pathname;
@@ -370,8 +435,8 @@
         const selectors = [
             '.side-nav-card__title',
             '[data-a-target="side-nav-card-title"]',
-            'p',
-            '[class*="channel-name" i]'
+            '[class*="channel-name" i]',
+            '[class*="username" i]'
         ];
         for (const selector of selectors) {
             const element = card.querySelector(selector);
@@ -670,6 +735,10 @@
             applyPreferences();
             if (key === 'previewEnabled' && !preferences.previewEnabled) hideChannelPreview();
             if (key === 'previewEnabled' && preferences.previewEnabled) preloadSidebarThumbnails();
+            if (key === 'hideDescriptions') {
+                if (preferences.hideDescriptions) hideExtraChannelText(findNav());
+                else restoreHiddenExtraText();
+            }
             if (key === 'autoCollapseSidebar' && isTheater) {
                 if (preferences.autoCollapseSidebar) ensureNativeSidebarCollapsed(findNav());
                 else restoreNativeSidebarState();
@@ -1049,6 +1118,7 @@
         // Removing the root class disables every temporary rule, then restores
         // the host's original position/layout. No Twitch layout styles are retained.
         document.documentElement.classList.remove(ROOT_CLASS);
+        restoreHiddenExtraText();
         releaseHost();
         isTheater = false;
         restoreNativeSidebarState();
@@ -1123,6 +1193,7 @@
 
         if (preferences.autoCollapseSidebar) ensureNativeSidebarCollapsed(nav);
         preloadSidebarThumbnails();
+        hideExtraChannelText(nav);
 
         const host = findHost(nav);
         if (!host) return;
