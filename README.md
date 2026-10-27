@@ -1,23 +1,29 @@
-# Twitch Theater Sidebar on Hover
+# Twitch Theater Sidebar — diagnostic build
 
-Tampermonkey userscript that slides Twitch's **existing native left navigation** ("For You") into view when the left edge is hovered in theater mode. It does not clone channel entries or create a replacement panel.
+This version adds a numbered diagnostic toolbar so we can test how Twitch's real left navigation is found and revealed. It does not clone or create a replacement list of streams; the toolbar is only a temporary debugging control.
 
-## Install
+## Install / update
 
-1. Install Tampermonkey.
-2. Open the [Raw userscript](https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js).
-3. Confirm installation and reload Twitch.
+Open the [Raw userscript](https://raw.githubusercontent.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/main/twitch-theater-sidebar.user.js) in Tampermonkey. The script uses that stable address for automatic update checks.
 
-## Automatic updates
+## How to test
 
-The userscript declares `@updateURL` and `@downloadURL` pointing at the stable Raw URL for the `main` branch. Enable automatic userscript update checking in Tampermonkey settings.
+1. Open a Twitch stream and switch to theater mode.
+2. In the top-right corner, use the diagnostic toolbar.
+3. Click modes 1–8 one at a time. Each mode tries a different selector/visibility method. Mode 9 outlines matching elements in yellow.
+4. If a mode reveals the original Twitch sidebar, tell me its number.
+5. For hover testing, click **"Скрыть / тест края"**, then move the pointer to the far-left edge.
+6. If no mode works, copy the diagnostic status text from the toolbar. It includes theater detection, candidate count, link count, element size, and CSS visibility.
 
-## Behavior
+Modes:
+1. `#side-nav`
+2. aria-label navigation
+3. `.side-nav`
+4. `data-test-selector`
+5. `data-a-target`
+6. parent wrapper of the strongest navigation candidate
+7. inline forced styles
+8. Twitch's native expand button
+9. yellow diagnostic outlines
 
-- Repositions Twitch's own left-navigation element; no copied channel list is created.
-- Detects theater mode with Twitch-specific selectors and a player-geometry fallback.
-- If Twitch changes its theater class names, hovering the left edge on a live channel page can temporarily reveal the native navigation.
-- Uses Twitch's expand control only if the navigation is collapsed, and restores that state after closing.
-- Avoids a page-wide MutationObserver to prevent unnecessary work during Twitch React updates.
-
-If the panel is still missing, verify that the script is enabled and that Tampermonkey has installed the latest version.
+No page-wide MutationObserver is used.
