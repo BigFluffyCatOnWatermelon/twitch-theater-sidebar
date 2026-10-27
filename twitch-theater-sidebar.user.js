@@ -3,7 +3,7 @@
 // @namespace    https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @homepageURL  https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar
 // @supportURL   https://github.com/BigFluffyCatOnWatermelon/twitch-theater-sidebar/issues
-// @version      5.3.0
+// @version      5.3.1
 // @description  Auto-collapse Twitch's native sidebar in theater mode and reveal its icon rail on hover.
 // @match        https://www.twitch.tv/*
 // @noframes
@@ -281,8 +281,12 @@
         document.documentElement.classList.add(ROOT_CLASS);
         syncHostWidth();
 
+        // Two frames ensure the hidden, transition-free state is painted once
+        // before transitions are re-enabled for subsequent hover animations.
         window.requestAnimationFrame(() => {
-            if (host.isConnected) host.classList.remove(INSTANT_CLASS);
+            window.requestAnimationFrame(() => {
+                if (host.isConnected) host.classList.remove(INSTANT_CLASS);
+            });
         });
 
         if (wasOpen) scheduleOpen();
