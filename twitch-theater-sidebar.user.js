@@ -172,7 +172,10 @@
         // after that render so the wrapper shrinks with the actual native icon rail.
         [60, 160, 320].forEach(delay => {
             window.setTimeout(() => {
-                if (isTheater) {
+                if (!isTheater) return;
+                const currentNav = findNav();
+                // Avoid a second toggle while Twitch is still processing the first one.
+                if (currentNav && isSidebarCollapsed(currentNav)) {
                     syncState();
                     syncHostWidth();
                 }
