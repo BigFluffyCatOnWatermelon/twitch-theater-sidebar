@@ -12,8 +12,8 @@ Tampermonkey userscript that smoothly slides Twitch's **original left navigation
 
 - No diagnostic toolbar, cloned list, or duplicate sidebar.
 - Uses the native navigation and its outer wrapper so it can slide above the theater player.
-- Smooth slide-in/slide-out animation with a small edge indicator while hidden.
-- Tracks Twitch's collapsed/expanded state. In collapsed mode, the host and native `.side-nav` width shrink together to the icon rail, so the rest of the panel does not remain as a transparent strip.
+- Smooth slide-in/slide-out animation with no decorative strip at the screen edge.
+- Automatically uses Twitch's native collapse control in theater mode, leaving only stream avatars visible; restores the prior expanded/collapsed state when leaving theater mode.
 - The wrapper background is taken from the actual Twitch sidebar theme, preventing a transparent gap if the collapsed rail has a few unused pixels.
 - Keeps the panel open while the pointer is over it; closes after moving away, on outside click, or Escape.
 - Restores the wrapper's prior custom properties and removes temporary classes when theater mode ends.
